@@ -50,25 +50,28 @@ class Config:
     def from_env(cls, env_path: str | Path | None = None) -> "Config":
         """从 .env 文件 + 环境变量构建 Config 实例。"""
         if env_path:
-            load_dotenv(env_path)
+            load_dotenv(env_path, override=True)
         else:
             # 优先级:
-            # 1. 当前目录 .env (本地调试优先)
-            # 2. 项目根目录 .env (源码运行优先)
-            # 3. ~/.munin/.env (CLI 全局配置)
+            # 1. 当前目录 .munin/.env (仓库本地配置)
+            # 2. 当前目录 .env (本地调试)
+            # 3. 项目根目录 .env (源码运行)
+            # 4. ~/.munin/.env (历史兼容)
 
             project_root = Path(__file__).resolve().parent.parent
-            user_config = Path.home() / ".munin" / ".env"
+            cwd_repo_config = Path.cwd() / ".munin" / ".env"
+            user_legacy_config = Path.home() / ".munin" / ".env"
 
             candidates = [
+                cwd_repo_config,
                 Path.cwd() / ".env",
                 project_root / ".env",
-                user_config
+                user_legacy_config,
             ]
 
             for candidate in candidates:
                 if candidate.exists():
-                    load_dotenv(candidate)
+                    load_dotenv(candidate, override=True)
                     break
 
         # 白名单：逗号分隔的数字

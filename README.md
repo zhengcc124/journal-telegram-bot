@@ -93,20 +93,14 @@ Enlighten 就是为了解决这个矛盾而生的。
    - `content/posts/` — 存放文章
    - `content/images/` — 存放图片
 
-### 第三步：配置 GitHub Actions（服务端）
+### 第三步：初始化日志仓库（自动化）
 
-把本项目中的以下文件复制到你的 `my-journal` 仓库：
+你不需要手动复制 workflow 和脚本了，`munin` 会自动写入：
 
-```
-my-journal/
-├── scripts/
-│   └── issue_to_md.py        # 从本项目复制
-└── .github/
-    └── workflows/
-        └── publish.yml        # 从本项目复制
-```
-
-> **注意**：确保 `publish.yml` 中的环境变量与你后续配置 Bot 时的设置保持一致（如 `ARTICLE_DIR`、`JOURNAL_LABEL` 等）。
+- `.github/workflows/publish.yml`
+- `scripts/issue_to_md.py`
+- `.munin/.env`（仓库私有配置）
+- `.gitignore` 中自动追加 `.munin/`（避免敏感配置入库）
 
 ### 第四步：安装与运行 Bot（客户端）
 
@@ -122,17 +116,38 @@ cd journal-telegram-bot
 pip install -e .
 ```
 
-#### 2. 初始化配置
+#### 2. 创建并配置日志仓库
 
-运行以下命令，交互式向导会引导你完成配置：
+在你希望放置日志仓库的目录下运行：
 
 ```bash
-munin init
+munin new my-journal
 ```
 
-它会询问你的 Token、User ID 等信息，并自动生成配置文件（保存在 `~/.munin/.env`）。
+它会：
 
-#### 3. 启动 Bot
+1. 创建 `my-journal/` 目录（若不存在）
+2. 交互式收集 Telegram/GitHub 配置
+3. 输入 GitHub 仓库地址（HTTPS/SSH，都支持，必填）
+4. 写入仓库配置到 `my-journal/.munin/.env`
+5. 自动写入 workflow + 转换脚本
+6. 执行 `git init` 并自动提交一次初始化 commit
+7. 自动尝试 `git remote add origin` + 首次 `git push`
+
+如果仓库已经存在，只想重配当前仓库参数：
+
+```bash
+cd my-journal
+munin config
+```
+
+> 如果你还没在 GitHub 创建远端仓库，`munin` 会明确提示并给出可直接执行的 `git` 命令。
+
+#### 3. 启动 Bot（在仓库目录内）
+
+```bash
+cd my-journal
+```
 
 ```bash
 # 前台启动（适合测试，按 Ctrl+C 停止）
@@ -171,11 +186,12 @@ munin stop
 $ munin --help
 
 Commands:
-  init    初始化配置向导
+  new     创建并初始化日志仓库
+  config  配置当前仓库（.munin/.env）
   start   启动 Bot (支持 --daemon)
-  stop    停止后台运行的 Bot
+  stop    停止当前仓库后台运行的 Bot
   status  查看运行状态
-  logs    查看日志 (tail -f 效果)
+  logs    查看当前仓库日志 (tail -f 效果)
 ```
 
 ## macOS 开机自启 (可选)
@@ -198,7 +214,7 @@ Commands:
 
 ## 环境变量说明
 
-配置保存在 `~/.munin/.env` 中，支持以下选项：
+配置保存在每个日志仓库自己的 `.munin/.env` 中（例如 `my-journal/.munin/.env`），支持以下选项：
 
 | 变量名 | 必填 | 说明 |
 |-------|------|------|
@@ -207,10 +223,19 @@ Commands:
 | `GITHUB_TOKEN` | ✅ | GitHub Personal Access Token |
 | `GITHUB_OWNER` | ✅ | GitHub 用户名或组织名 |
 | `GITHUB_REPO` | ✅ | 仓库名 |
+| `GITHUB_REPO_URL` | ✅ | 仓库地址（支持 HTTPS/SSH，用于自动推送） |
 | `GITHUB_BRANCH` | ❌ | 分支名 (默认 main) |
 | `ARTICLE_DIR` | ❌ | Markdown 文章存放目录 |
 | `IMAGE_DIR` | ❌ | 图片存放目录 |
+| `JOURNAL_LABEL` | ❌ | 日志 Issue 标签（默认 `journal`） |
+| `PUBLISHED_LABEL` | ❌ | 发布完成后标签（默认 `published`） |
 | `JOURNAL_TZ` | ❌ | 时区 (默认 Asia/Shanghai) |
+
+## 多仓库与 Token 约束
+
+- 推荐关系：`1 Telegram Bot Token ↔ 1 日志仓库`
+- 本机会做 Token 运行冲突检查：同一个 Token 不能同时被两个仓库进程启动
+- 这个检查是本机级别；如果你在另一台机器也启动了同一个 Token，Telegram 仍可能出现轮询冲突
 
 ## License
 

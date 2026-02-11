@@ -107,36 +107,33 @@ class MessageHandler:
             Markdown 格式的图片引用列表，如 ["![](content/images/2024/01/15/photo_123.jpg)"]
         """
         refs = []
-        
-        # 取最大尺寸的图片
-        for photo in photos:
-            largest = max(photos, key=lambda p: p.file_size or 0)
-            
-            # 下载图片
-            file = await context.bot.get_file(largest.file_id)
-            bio = io.BytesIO()
-            await file.download_to_memory(bio)
-            content = bio.getvalue()
-            
-            # 生成文件路径：YYYY/MM/DD/photo_<timestamp>_<file_id>.jpg
-            now = datetime.now(tz=self.config.timezone)
-            date_path = now.strftime("%Y/%m/%d")
-            filename = f"photo_{now.strftime('%H%M%S')}_{largest.file_id[-8:]}.jpg"
-            
-            file_path = f"{self.config.image_dir}/{date_path}/{filename}"
-            
-            # 上传
-            self.github.upload_file(
-                file_path=file_path,
-                content=content,
-                commit_message=f"Add image {filename}",
-            )
-            
-            # 返回 Markdown 引用
-            refs.append(f"![]({file_path})")
-            
-            break  # 只处理一张（Telegram 会把多张作为 album，这里简化处理）
-        
+
+        # Telegram 的 message.photo 是同一张图的不同尺寸，取最大尺寸即可
+        largest = max(photos, key=lambda p: p.file_size or 0)
+
+        # 下载图片
+        file = await context.bot.get_file(largest.file_id)
+        bio = io.BytesIO()
+        await file.download_to_memory(bio)
+        content = bio.getvalue()
+
+        # 生成文件路径：YYYY/MM/DD/photo_<timestamp>_<file_id>.jpg
+        now = datetime.now(tz=self.config.timezone)
+        date_path = now.strftime("%Y/%m/%d")
+        filename = f"photo_{now.strftime('%H%M%S')}_{largest.file_id[-8:]}.jpg"
+
+        file_path = f"{self.config.image_dir}/{date_path}/{filename}"
+
+        # 上传
+        self.github.upload_file(
+            file_path=file_path,
+            content=content,
+            commit_message=f"Add image {filename}",
+        )
+
+        # 使用站点根相对路径，避免文章相对路径导致图片失效
+        refs.append(f"![](/{file_path.lstrip('/')})")
+
         return refs
 
     def _build_issue_content(
@@ -156,9 +153,8 @@ class MessageHandler:
         Returns:
             (title, body)
         """
-        # 标题：取第一行或前 50 字符
-        lines = text.strip().split("\n")
-        title = lines[0][:50] if lines else f"Journal {datetime.now(tz=self.config.timezone).strftime('%Y-%m-%d %H:%M')}"
+        # 标题规则：固定为 yyyyMMdd
+        title = datetime.now(tz=self.config.timezone).strftime("%Y%m%d")
         
         # 正文：原文 + 图片
         body_parts = []

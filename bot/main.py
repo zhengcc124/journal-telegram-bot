@@ -7,6 +7,8 @@ Telegram Bot 入口
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
@@ -45,10 +47,13 @@ async def help_command(update, context) -> None:
     )
 
 
-def main() -> None:
+def main(env_path: str | Path | None = None) -> None:
     """主函数"""
+    if env_path is None:
+        env_path = os.getenv("MUNIN_ENV_PATH")
+
     # 加载配置
-    config = Config.from_env()
+    config = Config.from_env(env_path=env_path)
     logger.info(f"配置加载完成: {config.github_owner}/{config.github_repo}")
     
     # 初始化 GitHub 客户端
