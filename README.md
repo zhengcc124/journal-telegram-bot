@@ -114,10 +114,10 @@ my-journal/
 
 ```bash
 # 推荐：使用 pipx 安装到隔离环境（无需手动管理虚拟环境）
-pipx install git+https://github.com/zhengcc/journal-telegram-bot.git
+pipx install git+https://github.com/zhengcc124/journal-telegram-bot.git
 
 # 或者：开发者模式（源码运行）
-git clone https://github.com/zhengcc/journal-telegram-bot.git
+git clone https://github.com/zhengcc124/journal-telegram-bot.git
 cd journal-telegram-bot
 pip install -e .
 ```
