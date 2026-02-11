@@ -52,9 +52,21 @@ class Config:
         if env_path:
             load_dotenv(env_path)
         else:
-            # 往上找 .env：先看项目根，再看 cwd
+            # 优先级:
+            # 1. 当前目录 .env (本地调试优先)
+            # 2. 项目根目录 .env (源码运行优先)
+            # 3. ~/.munin/.env (CLI 全局配置)
+
             project_root = Path(__file__).resolve().parent.parent
-            for candidate in [project_root / ".env", Path.cwd() / ".env"]:
+            user_config = Path.home() / ".munin" / ".env"
+
+            candidates = [
+                Path.cwd() / ".env",
+                project_root / ".env",
+                user_config
+            ]
+
+            for candidate in candidates:
                 if candidate.exists():
                     load_dotenv(candidate)
                     break
