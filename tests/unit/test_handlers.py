@@ -1,7 +1,7 @@
 """
 Handlers 模块单元测试
 
-测试 Telegram 消息处理逻辑，特别是 Media Group 处理。
+测试 Telegram 消息处理逻辑。
 """
 
 from __future__ import annotations
@@ -282,3 +282,121 @@ class TestHandleMessageAuthorization:
         any_user.id = 123456789
         
         message = create_mock_message(text="测试", from_user=any_user)
+        update = create_mock_update(message=message, effective_user=any_user)
+        
+        with patch.object(handler.github, 'create_issue') as mock_create:
+            mock_create.return_value = {"html_url": "https://github.com/test/issue/1"}
+            
+            await handler.handle_message(update, mock_telegram_context)
+            
+            # 应该创建 issue
+            assert mock_create.called
+
+
+@pytest.mark.unit
+class TestHandleMessageValidation:
+    """测试消息验证。"""
+    
+    @pytest.mark.asyncio
+    async def test_empty_message(self, test_config: Config, mock_github_client: GitHubClient,
+                                create_mock_message, create_mock_update,
+                                mock_telegram_context, mock_telegram_user) -> None:
+        """测试空消息处理。"""
+        handler = MessageHandler(test_config, mock_github_client)
+        
+        # 既无文本也无图片的消息
+        message = create_mock_message(text=None, caption=None, photo=[], from_user=mock_telegram_user)
+        update = create_mock_update(message=message, effective_user=mock_telegram_user)
+        
+        with patch.object(handler.github, 'create_issue') as mock_create:
+            await handler.handle_message(update, mock_telegram_context)
+            
+            # 不应该创建 issue
+            assert not mock_create.called
+            # 应该提示用户
+            assert message.reply_text.called
+            reply_text = message.reply_text.call_args[0][0]
+            assert "发送点什么" in reply_text
+
+
+@pytest.mark.unit
+class TestHandleMessageEndToEnd:
+    """测试端到端消息处理。"""
+    
+    @pytest.mark.asyncio
+    async def test_text_only_message(self, test_config: Config, mock_github_client: GitHubClient,
+                                     create_mock_message, create_mock_update,
+                                     mock_telegram_context, mock_telegram_user) -> None:
+        """测试纯文本消息处理。"""
+        handler = MessageHandler(test_config, mock_github_client)
+        
+        message = create_mock_message(
+            text="这是一段测试文字 #标签1 #标签2",
+            from_user=mock_telegram_user
+        )
+        update = create_mock_update(message=message, effective_user=mock_telegram_user)
+        
+        with patch.object(handler.github, 'create_issue') as mock_create:
+            mock_create.return_value = {
+                "html_url": "https://github.com/test_owner/test_repo/issues/42",
+                "number": 42
+            }
+            
+            await handler.handle_message(update, mock_telegram_context)
+            
+            assert mock_create.called
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs['labels'] == ["标签1", "标签2"]
+    
+    @pytest.mark.asyncio
+    async def test_single_photo_with_caption(self, test_config: Config, mock_github_client: GitHubClient,
+                                            create_mock_message, create_mock_update,
+                                            mock_telegram_context, mock_telegram_user,
+                                            create_mock_photo) -> None:
+        """测试单张图片带 caption。"""
+        handler = MessageHandler(test_config, mock_github_client)
+        
+        photos = [create_mock_photo("photo_id", 2000)]
+        message = create_mock_message(
+            caption="图片说明 #图片",
+            photo=photos,
+            from_user=mock_telegram_user
+        )
+        update = create_mock_update(message=message, effective_user=mock_telegram_user)
+        
+        with patch.object(handler.github, 'upload_file') as mock_upload, \
+             patch.object(handler.github, 'create_issue') as mock_create:
+            mock_upload.return_value = {"content": {}}
+            mock_create.return_value = {
+                "html_url": "https://github.com/test_owner/test_repo/issues/1"
+            }
+            
+            await handler.handle_message(update, mock_telegram_context)
+            
+            # 应该上传图片并创建 issue
+            assert mock_upload.called
+            assert mock_create.called
+    
+    @pytest.mark.asyncio
+    async def test_error_handling(self, test_config: Config, mock_github_client: GitHubClient,
+                                 create_mock_message, create_mock_update,
+                                 mock_telegram_context, mock_telegram_user) -> None:
+        """测试错误处理。"""
+        handler = MessageHandler(test_config, mock_github_client)
+        
+        message = create_mock_message(
+            text="测试",
+            from_user=mock_telegram_user
+        )
+        update = create_mock_update(message=message, effective_user=mock_telegram_user)
+        
+        with patch.object(handler.github, 'create_issue') as mock_create:
+            mock_create.side_effect = Exception("GitHub API Error")
+            
+            await handler.handle_message(update, mock_telegram_context)
+            
+            # 应该回复错误信息
+            assert message.reply_text.called
+            reply_text = message.reply_text.call_args[0][0]
+            assert "❌" in reply_text
+            assert "GitHub API Error" in reply_text
