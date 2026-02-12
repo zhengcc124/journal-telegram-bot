@@ -198,11 +198,8 @@ class DiaryService:
             if entry_parts:
                 body_parts.append("\n\n".join(entry_parts))
         
-        # 用分隔线连接各条目
-        if len(entries) > 1:
-            body = "\n\n---\n\n".join(body_parts)
-        else:
-            body = "\n\n".join(body_parts)
+        # 用换行连接各条目（不使用分割线）
+        body = "\n\n".join(body_parts)
         
         # 添加元数据
         body += f"\n\n---\n*自动生成的日记* | {date}"
