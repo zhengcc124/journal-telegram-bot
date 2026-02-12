@@ -46,6 +46,11 @@ def main(env_path: str | Path | None = None) -> None:
     for handler in bot_handlers.get_handlers():
         app.add_handler(handler)
     
+    # 启动调度器（在异步上下文中）
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(bot_handlers.start_scheduler())
+    
     # 启动 Bot（Long Polling）
     logger.info("🚀 Bot 启动中...")
     logger.info("命令: /start, /help, /end")

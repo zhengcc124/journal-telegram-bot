@@ -39,9 +39,10 @@ class BotHandlers:
         self.storage = Storage()
         self.diary_service = DiaryService(self.storage, config, github)
         self.scheduler = DiaryScheduler(self.diary_service)
-        
-        # 启动调度器
-        self.scheduler.start()
+    
+    async def start_scheduler(self):
+        """启动调度器（需要在异步上下文中调用）"""
+        await self.scheduler.start()
     
     def get_handlers(self):
         """获取所有处理器"""
