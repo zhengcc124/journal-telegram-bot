@@ -157,6 +157,12 @@ class Storage:
             )
             conn.commit()
             
+            # 从数据库重新读取以获取正确的 created_at
+            row = conn.execute(
+                "SELECT * FROM entries WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            
             return Entry(
                 id=cursor.lastrowid,
                 journal_id=entry.journal_id,
@@ -165,7 +171,7 @@ class Storage:
                 content=entry.content,
                 images=entry.images,
                 tags=entry.tags,
-                created_at=datetime.now(),
+                created_at=datetime.fromisoformat(row["created_at"]),
             )
     
     def get_entries(self, journal_id: int) -> list[Entry]:

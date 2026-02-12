@@ -57,7 +57,7 @@ class DiaryService:
         # 获取或创建今天的日记
         journal = self.storage.get_or_create_journal(user_id, today)
         
-        # 创建条目
+        # 创建条目（使用配置的时区）
         entry = Entry(
             id=0,  # 会被数据库自动设置
             journal_id=journal.id,
@@ -66,7 +66,7 @@ class DiaryService:
             content=content,
             images=images,
             tags=tags,
-            created_at=datetime.now(),
+            created_at=datetime.now(self.config.timezone),
         )
         
         return self.storage.add_entry(entry)
@@ -181,7 +181,13 @@ class DiaryService:
             
             # 添加时间（如果用户配置启用）
             if user_config.get("show_entry_time", True):
-                entry_time = entry.created_at.astimezone(self.config.timezone)
+                # 确保时间有时区信息，然后转换为配置时区
+                entry_time = entry.created_at
+                if entry_time.tzinfo is None:
+                    # 如果数据库中的时间没有时区，假定为 UTC
+                    from datetime import timezone
+                    entry_time = entry_time.replace(tzinfo=timezone.utc)
+                entry_time = entry_time.astimezone(self.config.timezone)
                 time_format = user_config.get("entry_time_format", "%H:%M")
                 time_str = entry_time.strftime(time_format)
                 entry_parts.append(f"**{time_str}**")
