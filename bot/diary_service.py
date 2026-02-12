@@ -1,244 +1,207 @@
 """
-日记服务
+日记服务层
 
-处理日记逻辑：添加消息、合并日记、检查跨天等
+处理日记业务逻辑：
+- 添加消息到日记
+- 合并日记生成 GitHub Issue
+- 跨天检测
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Any
+from typing import TYPE_CHECKING
 
-from .storage import Storage, Journal, Entry
-from .github_client import GitHubClient
-from .config import Config
+from .storage import Entry, Journal, Storage
+
+if TYPE_CHECKING:
+    from .config import Config
+    from .github_client import GitHubClient
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class MergeResult:
-    """合并结果"""
-    success: bool
-    issue_url: Optional[str] = None
-    error: Optional[str] = None
 
 
 class DiaryService:
     """处理日记逻辑"""
     
-    def __init__(self, storage: Storage, github: GitHubClient, config: Config):
+    def __init__(self, storage: Storage, config: "Config", github: "GitHubClient"):
         self.storage = storage
-        self.github = github
         self.config = config
+        self.github = github
     
-    def add_message(self, user_id: int, message: Any) -> Entry:
+    def add_message(
+        self,
+        user_id: int,
+        message_id: int,
+        content: str,
+        images: list[str],
+        tags: list[str],
+    ) -> Entry:
         """
         添加消息到当天的日记
         
         Args:
             user_id: Telegram 用户 ID
-            message: Telegram 消息对象
+            message_id: Telegram 消息 ID
+            content: 消息文本内容
+            images: 图片 file_id 列表
+            tags: 提取的标签
             
         Returns:
             创建的 Entry
         """
-        # 获取今天的日期
-        now = datetime.now(tz=self.config.timezone)
-        today_str = now.strftime("%Y-%m-%d")
+        # 获取今天的日期（根据配置的时区）
+        today = datetime.now(self.config.timezone).strftime("%Y-%m-%d")
         
-        # 获取或创建今天的 Journal
-        journal = self.storage.get_or_create_journal(user_id, today_str)
+        # 获取或创建今天的日记
+        journal = self.storage.get_or_create_journal(user_id, today)
         
-        # 提取消息内容
-        text = message.text or message.caption or ""
-        
-        # 提取图片 file_ids
-        images = []
-        if message.photo:
-            # 取最大尺寸的图片
-            largest = max(message.photo, key=lambda p: p.file_size or 0)
-            images = [largest.file_id]
-        
-        # 提取标签
-        tags = self._extract_tags(text)
-        
-        # 创建 Entry
+        # 创建条目
         entry = Entry(
-            id=0,  # 数据库会生成
+            id=0,  # 会被数据库自动设置
             journal_id=journal.id,
             source_type="telegram",
-            message_id=message.message_id,
-            content=text,
+            message_id=message_id,
+            content=content,
             images=images,
             tags=tags,
-            created_at=now,
+            created_at=datetime.now(),
         )
         
         return self.storage.add_entry(entry)
     
-    def merge_journal(self, user_id: int, date_str: str) -> MergeResult:
+    def merge_journal(self, user_id: int, date: str) -> str | None:
         """
-        合并某天的日记到 GitHub Issue
+        合并日记并生成 GitHub Issue
         
         Args:
-            user_id: Telegram 用户 ID
-            date_str: 日期字符串 YYYY-MM-DD
+            user_id: 用户 ID
+            date: 日期 (YYYY-MM-DD)
             
         Returns:
-            合并结果
+            GitHub Issue URL 或 None（如果没有条目）
         """
+        # 获取日记
+        journal = self.storage.get_journal(user_id, date)
+        if not journal:
+            logger.warning(f"没有找到日记: user={user_id}, date={date}")
+            return None
+        
+        if journal.status == "merged":
+            logger.info(f"日记已合并: journal_id={journal.id}")
+            return None
+        
+        # 获取所有条目
+        entries = self.storage.get_entries(journal.id)
+        if not entries:
+            logger.warning(f"日记没有条目: journal_id={journal.id}")
+            return None
+        
+        # 构建 Issue 内容
+        title, body = self._build_issue_content(date, entries)
+        
+        # 收集所有标签
+        all_tags = set()
+        for entry in entries:
+            all_tags.update(entry.tags)
+        all_tags.add(self.config.journal_label)
+        
+        # 创建 GitHub Issue
         try:
-            # 获取 Journal
-            journal = self.storage.get_journal(user_id, date_str)
-            if not journal:
-                return MergeResult(success=False, error=f"未找到 {date_str} 的日记")
-            
-            if journal.status == "merged":
-                return MergeResult(success=False, error="日记已合并")
-            
-            # 获取所有条目
-            entries = self.storage.get_entries(journal.id)
-            if not entries:
-                return MergeResult(success=False, error="日记为空")
-            
-            # 构建 Issue 内容
-            title, body = self._build_issue_content(entries, date_str)
-            
-            # 收集所有标签
-            all_tags = set()
-            for entry in entries:
-                all_tags.update(entry.tags)
-            all_tags.add(self.config.journal_label)
-            
-            # 创建 GitHub Issue
             issue = self.github.create_issue(
                 title=title,
                 body=body,
                 labels=list(all_tags),
             )
             
-            # 标记为已合并
-            self.storage.mark_journal_merged(journal.id)
+            # 标记日记已合并
+            self.storage.mark_journal_merged(journal.id, issue["html_url"])
             
-            logger.info(f"日记 {date_str} 已合并到 Issue: {issue['html_url']}")
-            return MergeResult(success=True, issue_url=issue['html_url'])
+            logger.info(f"日记已合并: {date} -> {issue['html_url']}")
+            return issue["html_url"]
             
         except Exception as e:
-            logger.exception(f"合并日记 {date_str} 失败")
-            return MergeResult(success=False, error=str(e))
+            logger.exception(f"合并日记失败: {date}")
+            raise
     
-    def should_merge(self, user_id: int, date_str: str) -> bool:
+    def should_merge(self, user_id: int, date: str) -> bool:
         """
-        检查是否应该合并某天的日记（跨天检查）
+        检查是否需要合并（跨天检测）
         
         Args:
-            user_id: Telegram 用户 ID
-            date_str: 日期字符串 YYYY-MM-DD
+            user_id: 用户 ID
+            date: 日期 (YYYY-MM-DD)
             
         Returns:
-            是否应该合并
+            是否需要合并
         """
-        journal = self.storage.get_journal(user_id, date_str)
-        if not journal:
-            return False
+        # 获取今天的日期
+        today = datetime.now(self.config.timezone).strftime("%Y-%m-%d")
         
-        if journal.status != "collecting":
-            return False
+        # 如果指定日期早于今天，且日记处于 collecting 状态，则需要合并
+        if date < today:
+            journal = self.storage.get_journal(user_id, date)
+            if journal and journal.status == "collecting":
+                return True
         
-        # 检查是否有条目
-        entries = self.storage.get_entries(journal.id)
-        return len(entries) > 0
+        return False
     
-    def merge_all_pending(self, before_date: Optional[str] = None) -> list[MergeResult]:
-        """
-        合并所有待处理的日记（用于跨天自动合并）
-        
-        Args:
-            before_date: 合并此日期之前的日记，默认为今天
-            
-        Returns:
-            合并结果列表
-        """
-        if before_date is None:
-            before_date = datetime.now(tz=self.config.timezone).strftime("%Y-%m-%d")
-        
-        pending = self.storage.get_pending_journals(before_date)
-        results = []
-        
-        for journal in pending:
-            result = self.merge_journal(journal.user_id, journal.date)
-            results.append(result)
-        
-        return results
-    
-    def _extract_tags(self, text: str) -> list[str]:
-        """从文本中提取 #标签"""
-        import re
-        pattern = r"#([\w\u4e00-\u9fa5]+)"
-        matches = re.findall(pattern, text)
-        
-        # 去重 + 过滤 journal 标签
-        tags = list(dict.fromkeys(matches))
-        tags = [t for t in tags if t != self.config.journal_label]
-        
-        return tags
-    
-    def _build_issue_content(self, entries: list[Entry], date_str: str) -> tuple[str, str]:
+    def _build_issue_content(self, date: str, entries: list[Entry]) -> tuple[str, str]:
         """
         构建 Issue 标题和正文
         
         Args:
+            date: 日期 (YYYY-MM-DD)
             entries: 日记条目列表
-            date_str: 日期字符串 YYYY-MM-DD
             
         Returns:
             (title, body)
         """
-        # 标题：yyyyMMdd
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        title = date_obj.strftime("%Y%m%d")
+        # 标题: YYYYMMDD
+        title = date.replace("-", "")
         
-        # 正文：按时间顺序合并所有条目
+        # 正文：合并所有条目
         body_parts = []
         
-        for entry in entries:
+        for i, entry in enumerate(entries):
             entry_parts = []
             
+            # 添加内容
             if entry.content:
                 entry_parts.append(entry.content)
             
-            # 图片占位符（将在上传后替换）
-            for file_id in entry.images:
-                entry_parts.append(f"![](image:{file_id})")
+            # 添加图片引用（实际 URL 需要在 GitHub 上传后才知道）
+            # 这里只添加占位符，后续需要配合图片上传逻辑
+            if entry.images:
+                entry_parts.append("\n---\n")
+                for img_id in entry.images:
+                    entry_parts.append(f"![]({img_id})")
             
             if entry_parts:
+                body_parts.append(f"\n### Entry {i+1}\n" if len(entries) > 1 else "")
                 body_parts.append("\n".join(entry_parts))
         
-        # 用分隔线连接多个条目
-        body = "\n\n---\n\n".join(body_parts)
+        body = "\n\n".join(body_parts)
+        
+        # 添加元数据
+        body += f"\n\n---\n*自动生成的日记* | {date}"
         
         return title, body
     
-    def get_today_summary(self, user_id: int) -> dict:
-        """获取今天的日记摘要"""
-        today_str = datetime.now(tz=self.config.timezone).strftime("%Y-%m-%d")
-        journal = self.storage.get_journal(user_id, today_str)
+    def get_or_create_today(self, user_id: int) -> Journal:
+        """获取或创建今天的日记"""
+        today = datetime.now(self.config.timezone).strftime("%Y-%m-%d")
+        return self.storage.get_or_create_journal(user_id, today)
+    
+    def get_pending_merges(self) -> list[tuple[int, str]]:
+        """
+        获取所有需要合并的日记
         
-        if not journal:
-            return {
-                "date": today_str,
-                "entry_count": 0,
-                "status": "none",
-            }
+        Returns:
+            [(user_id, date), ...]
+        """
+        today = datetime.now(self.config.timezone).strftime("%Y-%m-%d")
+        journals = self.storage.get_collecting_journals(before_date=today)
         
-        entries = self.storage.get_entries(journal.id)
-        
-        return {
-            "date": today_str,
-            "entry_count": len(entries),
-            "status": journal.status,
-        }
+        return [(j.user_id, j.date) for j in journals]
