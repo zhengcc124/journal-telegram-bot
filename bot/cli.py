@@ -348,20 +348,51 @@ def _bootstrap_repo_from_munin_source(repo_dir: Path) -> dict[str, str]:
     return results
 
 
-def _bootstrap_frontend(repo_dir: Path) -> dict[str, str]:
-    """从 munin package 复制前端模板到仓库"""
+def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
+    """从 munin package 复制前端模板到仓库
+    
+    Args:
+        repo_dir: 目标仓库目录
+        force: 如果目标目录已存在，是否强制覆盖
+        
+    Returns:
+        dict[str, str]: 复制的文件列表 {相对路径: 状态}
+        
+    Raises:
+        RuntimeError: 复制失败时抛出
+        FileExistsError: 目标目录已存在且 force=False 时抛出
+    """
     import shutil
     import importlib.resources as pkg_resources
     
     results: dict[str, str] = {}
     
     try:
-        frontend_src = pkg_resources.files('munin') / 'frontend'
+        # 获取 munin 包中的 frontend 目录
+        try:
+            munin_pkg = pkg_resources.files('munin')
+        except ImportError:
+            raise RuntimeError("无法找到 munin package，请确保 munin 已正确安装")
+        
+        frontend_src = munin_pkg / 'frontend'
+        
+        # 验证源目录存在
+        if not frontend_src.exists():
+            raise RuntimeError(f"munin package 中未找到前端模板目录: {frontend_src}")
+        
         frontend_dst = repo_dir / 'frontend'
         
+        # 处理目标目录已存在的情况
         if frontend_dst.exists():
+            if not force:
+                raise FileExistsError(
+                    f"目标目录已存在: {frontend_dst}"
+                    f"\n使用 force=True 覆盖，或手动删除后重试"
+                )
+            console.print(f"[yellow]目标目录已存在，正在覆盖: {frontend_dst}[/yellow]")
             shutil.rmtree(frontend_dst)
         
+        # 复制文件
         shutil.copytree(frontend_src, frontend_dst)
         
         # 统计复制的文件
@@ -370,11 +401,61 @@ def _bootstrap_frontend(repo_dir: Path) -> dict[str, str]:
                 rel_path = item.relative_to(repo_dir)
                 results[str(rel_path)] = 'created'
         
-    except Exception as e:
-        console.print(f"[yellow]⚠️ 复制前端模板时出错: {e}[/yellow]")
+        if not results:
+            raise RuntimeError("复制完成后未找到任何文件，请检查源目录")
+        
+    except FileExistsError:
         raise
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(f"复制前端模板时出错: {e}")
     
     return results
+
+
+def _get_github_pages_url(config_data: dict[str, str]) -> str:
+    """根据配置生成 GitHub Pages URL"""
+    owner = config_data.get('GITHUB_OWNER', '')
+    repo = config_data.get('GITHUB_REPO', '')
+    
+    if not owner or not repo:
+        return ""
+    
+    # 用户站点: username.github.io
+    if repo.lower() == f"{owner.lower()}.github.io":
+        return f"https://{owner.lower()}.github.io/"
+    
+    # 项目站点
+    return f"https://{owner.lower()}.github.io/{repo}/"
+
+
+def _print_github_pages_hints(config_data: dict[str, str]) -> None:
+    """打印 GitHub Pages 启用提示"""
+    url = _get_github_pages_url(config_data)
+    owner = config_data.get('GITHUB_OWNER', '')
+    repo = config_data.get('GITHUB_REPO', '')
+    
+    console.print("\n[bold cyan]🌐 GitHub Pages 设置指南[/bold cyan]")
+    console.print("─" * 50)
+    
+    if url:
+        console.print(f"[green]📍 部署后访问地址: {url}[/green]")
+    
+    console.print("\n[bold]启用 GitHub Pages 步骤:[/bold]")
+    console.print("1. 访问 GitHub 仓库页面")
+    console.print(f"   https://github.com/{owner}/{repo}")
+    console.print("2. 点击 [bold]Settings[/bold] → [bold]Pages[/bold]")
+    console.print("3. 在 'Build and deployment' 部分:")
+    console.print("   - Source: 选择 [bold]'GitHub Actions'[/bold]")
+    console.print("4. 保存后，首次推送将自动触发部署")
+    
+    console.print("\n[bold]站点配置:[/bold]")
+    console.print("• 编辑 [cyan]frontend/site/config.yml[/cyan] 自定义站点信息")
+    console.print("• 修改 [cyan]url[/cyan] 字段为上述访问地址")
+    
+    console.print("\n[yellow]⚠️ 注意: 首次部署后，GitHub Pages 可能需要几分钟才能生效[/yellow]")
+    console.print("─" * 50)
 
 
 def _ensure_gitignore_has_munin(repo_dir: Path) -> None:
@@ -572,6 +653,7 @@ def _read_repo_url_from_env(env_path: Path) -> str:
 def new(
     repo: str = typer.Argument(..., help="新日志仓库目录名（可为相对路径）"),
     force: bool = typer.Option(False, "--force", "-f", help="强制覆盖已有配置"),
+    no_frontend: bool = typer.Option(False, "--no-frontend", help="跳过前端模板初始化"),
 ):
     """创建并初始化一个新的日志仓库目录"""
     target = Path(repo).expanduser()
@@ -587,31 +669,83 @@ def new(
         target.mkdir(parents=True, exist_ok=True)
         console.print(f"[green]已创建目录: {target}[/green]")
 
+    # 1. 配置仓库
     config_data = _configure_repo(target, force=force)
-    _git_init_and_commit(target, repo_name=target.name)
+    
+    # 2. Git 初始化
+    git_initialized = False
+    try:
+        if not (target / ".git").exists():
+            init_result = subprocess.run(["git", "init"], cwd=target, capture_output=True, text=True)
+            if init_result.returncode == 0:
+                git_initialized = True
+                console.print("[green]✅ Git 仓库已初始化[/green]")
+            else:
+                console.print(f"[yellow]⚠️ git init 失败: {init_result.stderr.strip()}[/yellow]")
+        else:
+            git_initialized = True
+    except FileNotFoundError:
+        console.print("[yellow]⚠️ 未找到 git 命令[/yellow]")
 
-    # 可选：添加前端展示页面
-    if Confirm.ask("🌐 是否添加 GitHub Pages 前端展示页面？", default=True):
+    # 3. 可选：添加前端展示页面（在首次 commit 之前）
+    frontend_added = False
+    if not no_frontend and Confirm.ask("🌐 是否添加 GitHub Pages 前端展示页面？", default=True):
         console.print("[bold]🔧 正在复制前端模板...[/bold]")
         try:
-            results = _bootstrap_frontend(target)
-            for file_path in list(results.keys())[:5]:  # 只显示前5个文件
-                console.print(f"[green]  + {file_path}[/green]")
-            if len(results) > 5:
-                console.print(f"[green]  ... 共 {len(results)} 个文件[/green]")
-            
-            # 前端文件也需要提交
-            subprocess.run(["git", "add", "-A"], cwd=target, capture_output=True, text=True)
-            subprocess.run(
-                ["git", "commit", "-m", "Add frontend templates for GitHub Pages"],
-                cwd=target, capture_output=True, text=True
-            )
-            console.print("[green]✅ 前端模板已添加并提交[/green]")
-            console.print(f"[cyan]部署后访问: https://{config_data['GITHUB_OWNER']}.github.io/{config_data['GITHUB_REPO']}/[/cyan]")
+            results = _bootstrap_frontend(target, force=force)
+            displayed = 0
+            for file_path in results:
+                if displayed < 5:
+                    console.print(f"[green]  + {file_path}[/green]")
+                    displayed += 1
+                elif displayed == 5:
+                    console.print(f"[green]  ... 共 {len(results)} 个文件[/green]")
+                    displayed += 1
+            frontend_added = True
+            console.print("[green]✅ 前端模板已添加[/green]")
+        except FileExistsError as e:
+            console.print(f"[yellow]⚠️ {e}[/yellow]")
+            console.print("[yellow]使用 --force 选项覆盖，或手动删除后重试[/yellow]")
         except Exception as e:
             console.print(f"[yellow]⚠️ 添加前端模板失败: {e}[/yellow]")
             console.print("[yellow]你可以稍后手动添加前端模板[/yellow]")
 
+    # 4. 统一提交（包含所有初始文件）
+    if git_initialized:
+        try:
+            subprocess.run(["git", "add", "-A"], cwd=target, capture_output=True, text=True)
+            
+            # 检查是否有文件待提交
+            staged = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=target,
+                capture_output=True,
+                text=True,
+            )
+            if staged.returncode == 0:
+                console.print("[yellow]没有可提交的变更[/yellow]")
+            else:
+                # 构建提交信息
+                commit_parts = ["初始化仓库"]
+                if frontend_added:
+                    commit_parts.append("，添加前端模板")
+                commit_msg = "".join(commit_parts)
+                
+                commit_result = subprocess.run(
+                    ["git", "commit", "-m", commit_msg],
+                    cwd=target,
+                    capture_output=True,
+                    text=True,
+                )
+                if commit_result.returncode == 0:
+                    console.print(f"[bold green]✅ 已完成首次提交: {commit_msg}[/bold green]")
+                else:
+                    err = (commit_result.stderr or commit_result.stdout).strip()
+                    console.print(f"[yellow]⚠️ 提交失败: {err}[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Git 提交出错: {e}[/yellow]")
+
+    # 5. 推送
     repo_url = config_data.get("GITHUB_REPO_URL", "").strip()
     branch = config_data.get("GITHUB_BRANCH", "main").strip()
     ok, message = _setup_remote_and_push(target, repo_url, branch)
@@ -621,6 +755,10 @@ def new(
         console.print(f"[yellow]⚠️ 自动推送未完成: {message}[/yellow]")
         console.print("[yellow]常见原因：GitHub 远端仓库尚未创建，或本机 SSH/Token 权限未准备好。[/yellow]")
         _print_remote_setup_hint(target, repo_url, config_data["GITHUB_OWNER"], config_data["GITHUB_REPO"], branch)
+
+    # 打印 GitHub Pages 提示
+    if frontend_added:
+        _print_github_pages_hints(config_data)
 
     console.print("\n[bold green]🚀 新仓库初始化完成[/bold green]")
     console.print(f"下一步: [bold]cd {target}[/bold]")
