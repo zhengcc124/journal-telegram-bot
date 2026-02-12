@@ -279,11 +279,11 @@ class BotHandlers:
             commit_message=f"Add image {filename}",
         )
         
-        # 获取图片 URL
+        # 获取图片 URL - 使用 GitHub raw URL 格式
         if result and "content" in result:
-            image_url = result["content"].get("html_url", "")
-            # 转换为相对路径
-            refs.append(f"![](/{file_path.lstrip('/')})")
+            # 构建 raw.githubusercontent.com URL
+            raw_url = f"https://raw.githubusercontent.com/{self.config.github_owner}/{self.config.github_repo}/{self.config.branch}/{file_path}"
+            refs.append(f"![]({raw_url})")
         
         return refs
 
