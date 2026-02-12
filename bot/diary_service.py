@@ -7,11 +7,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
-from datetime import datetime, date, timedelta
-from typing import Optional
-
-from telegram import Message
+from datetime import datetime
+from typing import Optional, Any
 
 from .storage import Storage, Journal, Entry
 from .github_client import GitHubClient
@@ -36,7 +35,7 @@ class DiaryService:
         self.github = github
         self.config = config
     
-    def add_message(self, user_id: int, message: Message) -> Entry:
+    def add_message(self, user_id: int, message: Any) -> Entry:
         """
         添加消息到当天的日记
         
