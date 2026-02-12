@@ -85,6 +85,13 @@ class Storage:
                 conn.execute("ALTER TABLE journals ADD COLUMN github_issue_url TEXT")
                 conn.commit()
     
+    def _get_row_value(self, row, key: str, default=None):
+        """安全地获取行值（处理旧数据库没有该字段的情况）"""
+        try:
+            return row[key]
+        except (KeyError, IndexError):
+            return default
+    
     def get_or_create_journal(self, user_id: int, date: str) -> Journal:
         """获取或创建日记"""
         with sqlite3.connect(self.db_path) as conn:
@@ -102,7 +109,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
-                    github_issue_url=row.get("github_issue_url"),
+                    github_issue_url=self._get_row_value(row, "github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             
@@ -189,7 +196,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
-                    github_issue_url=row.get("github_issue_url"),
+                    github_issue_url=self._get_row_value(row, "github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             return None
@@ -209,7 +216,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
-                    github_issue_url=row.get("github_issue_url"),
+                    github_issue_url=self._get_row_value(row, "github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
                 for row in rows
