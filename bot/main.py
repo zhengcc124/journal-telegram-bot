@@ -48,8 +48,17 @@ def main(env_path: str | Path | None = None) -> None:
     
     # 启动调度器（在异步上下文中）
     import asyncio
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(bot_handlers.start_scheduler())
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    if loop.is_running():
+        # 如果已经在运行（如被 nb-cli 调用），创建任务
+        loop.create_task(bot_handlers.start_scheduler())
+    else:
+        loop.run_until_complete(bot_handlers.start_scheduler())
     
     # 启动 Bot（Long Polling）
     logger.info("🚀 Bot 启动中...")
