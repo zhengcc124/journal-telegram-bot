@@ -47,6 +47,7 @@ class BotHandlers:
     def get_handlers(self):
         """获取所有处理器"""
         return [
+            CommandHandler("config", self.handle_config),
             CommandHandler("end", self.handle_end),
             CommandHandler("start", self.handle_start),
             CommandHandler("help", self.handle_help),
@@ -72,9 +73,75 @@ class BotHandlers:
             "2. 在消息中使用 #标签 来分类\n"
             "3. 每天的日记会自动合并到 GitHub\n"
             "4. 使用 /end 手动触发合并\n\n"
+            "配置:\n"
+            "/config - 查看当前配置\n"
+            "/config time on|off - 开启/关闭时间显示\n"
+            "/config format 24h|12h - 设置时间格式\n\n"
             "示例:\n"
             "今天读了一本书 #读书 #思考"
         )
+    
+    async def handle_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """处理 /config 命令"""
+        user_id = update.effective_user.id
+        
+        # 权限检查
+        if not self._check_permission(user_id):
+            await update.message.reply_text("⚠️ 你没有权限使用这个 bot")
+            return
+        
+        # 解析命令参数
+        args = context.args
+        if not args:
+            # 显示当前配置
+            config = self.storage.get_user_config(user_id)
+            time_status = "开启" if config.get("show_entry_time", True) else "关闭"
+            time_format = config.get("entry_time_format", "%H:%M")
+            
+            await update.message.reply_text(
+                f"⚙️ 当前配置:\n\n"
+                f"时间显示: {time_status}\n"
+                f"时间格式: {time_format}\n\n"
+                f"修改配置:\n"
+                f"/config time on - 开启时间显示\n"
+                f"/config time off - 关闭时间显示\n"
+                f"/config format 24h - 24小时制\n"
+                f"/config format 12h - 12小时制"
+            )
+            return
+        
+        # 处理配置命令
+        key = args[0].lower()
+        
+        if key == "time" and len(args) >= 2:
+            value = args[1].lower()
+            if value in ("on", "true", "1"):
+                self.storage.set_user_config(user_id, "show_entry_time", 1)
+                await update.message.reply_text("✅ 已开启时间显示")
+            elif value in ("off", "false", "0"):
+                self.storage.set_user_config(user_id, "show_entry_time", 0)
+                await update.message.reply_text("✅ 已关闭时间显示")
+            else:
+                await update.message.reply_text("❌ 用法: /config time on|off")
+        
+        elif key == "format" and len(args) >= 2:
+            value = args[1].lower()
+            if value == "24h":
+                self.storage.set_user_config(user_id, "entry_time_format", "%H:%M")
+                await update.message.reply_text("✅ 已设置为24小时制 (16:30)")
+            elif value == "12h":
+                self.storage.set_user_config(user_id, "entry_time_format", "%I:%M %p")
+                await update.message.reply_text("✅ 已设置为12小时制 (04:30 PM)")
+            else:
+                await update.message.reply_text("❌ 用法: /config format 24h|12h")
+        
+        else:
+            await update.message.reply_text(
+                "❌ 未知配置命令\n\n"
+                "用法:\n"
+                "/config time on|off\n"
+                "/config format 24h|12h"
+            )
     
     async def handle_end(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理 /end 命令 - 立即合并今天的日记"""

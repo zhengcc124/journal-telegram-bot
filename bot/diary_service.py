@@ -95,7 +95,7 @@ class DiaryService:
             return None
         
         # 构建 Issue 内容
-        title, body = self._build_issue_content(date, entries)
+        title, body = self._build_issue_content(user_id, date, entries)
         
         # 收集所有标签
         all_tags = set()
@@ -155,11 +155,12 @@ class DiaryService:
         
         return False
     
-    def _build_issue_content(self, date: str, entries: list[Entry]) -> tuple[str, str]:
+    def _build_issue_content(self, user_id: int, date: str, entries: list[Entry]) -> tuple[str, str]:
         """
         构建 Issue 标题和正文
         
         Args:
+            user_id: 用户 ID
             date: 日期 (YYYY-MM-DD)
             entries: 日记条目列表
             
@@ -172,13 +173,17 @@ class DiaryService:
         # 正文：合并所有条目
         body_parts = []
         
+        # 获取用户配置
+        user_config = self.storage.get_user_config(user_id)
+        
         for entry in entries:
             entry_parts = []
             
-            # 添加时间（如果配置启用）
-            if self.config.show_entry_time:
+            # 添加时间（如果用户配置启用）
+            if user_config.get("show_entry_time", True):
                 entry_time = entry.created_at.astimezone(self.config.timezone)
-                time_str = entry_time.strftime(self.config.entry_time_format)
+                time_format = user_config.get("entry_time_format", "%H:%M")
+                time_str = entry_time.strftime(time_format)
                 entry_parts.append(f"**{time_str}**")
             
             # 添加内容

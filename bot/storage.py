@@ -84,6 +84,16 @@ class Storage:
             if 'github_issue_url' not in columns:
                 conn.execute("ALTER TABLE journals ADD COLUMN github_issue_url TEXT")
                 conn.commit()
+            
+            # 用户配置表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_configs (
+                    user_id INTEGER PRIMARY KEY,
+                    show_entry_time INTEGER DEFAULT 1,
+                    entry_time_format TEXT DEFAULT '%H:%M'
+                )
+            """)
+            conn.commit()
     
     def _get_row_value(self, row, key: str, default=None):
         """安全地获取行值（处理旧数据库没有该字段的情况）"""
@@ -229,4 +239,52 @@ class Storage:
                 "UPDATE journals SET status = 'merged', github_issue_url = ? WHERE id = ?",
                 (issue_url, journal_id)
             )
+            conn.commit()
+    
+    # ── 用户配置 ─────────────────────────────────────────
+    
+    def get_user_config(self, user_id: int) -> dict:
+        """获取用户配置"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM user_configs WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()
+            
+            if row:
+                return {
+                    "show_entry_time": bool(row["show_entry_time"]),
+                    "entry_time_format": row["entry_time_format"],
+                }
+            # 默认配置
+            return {
+                "show_entry_time": True,
+                "entry_time_format": "%H:%M",
+            }
+    
+    def set_user_config(self, user_id: int, key: str, value) -> None:
+        """设置用户配置"""
+        with sqlite3.connect(self.db_path) as conn:
+            # 先检查是否存在
+            row = conn.execute(
+                "SELECT 1 FROM user_configs WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()
+            
+            if row:
+                # 更新
+                conn.execute(
+                    f"UPDATE user_configs SET {key} = ? WHERE user_id = ?",
+                    (value, user_id)
+                )
+            else:
+                # 插入（使用默认值填充其他字段）
+                defaults = {"show_entry_time": True, "entry_time_format": "%H:%M"}
+                defaults[key] = value
+                conn.execute(
+                    """INSERT INTO user_configs (user_id, show_entry_time, entry_time_format)
+                        VALUES (?, ?, ?)""",
+                    (user_id, defaults["show_entry_time"], defaults["entry_time_format"])
+                )
             conn.commit()
