@@ -90,7 +90,7 @@ class DiaryService:
         
         if journal.status == "merged":
             logger.info(f"日记已合并: journal_id={journal.id}")
-            return None
+            return journal.github_issue_url  # 返回已合并的 Issue URL
         
         # 获取所有条目
         entries = self.storage.get_entries(journal.id)
