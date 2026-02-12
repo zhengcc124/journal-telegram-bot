@@ -31,27 +31,27 @@ class Config:
 
     # ── Telegram ─────────────────────────────────────────
     telegram_token: str
-    allowed_user_ids: list[int]          # 白名单，只允许这些用户发消息
+    allowed_user_ids: list[int]  # 白名单，只允许这些用户发消息
 
     # ── GitHub ───────────────────────────────────────────
     github_token: str
-    github_owner: str                    # 仓库 owner（用户名 / 组织名）
-    github_repo: str                     # 仓库名
+    github_owner: str  # 仓库 owner（用户名 / 组织名）
+    github_repo: str  # 仓库名
 
     # ── 行为 ─────────────────────────────────────────────
     branch: str = "main"
-    article_dir: str = "content/posts"   # Markdown 存放根目录
-    image_dir: str = "content/images"    # 图片存放根目录
-    journal_label: str = "journal"       # 标识日志类 Issue 的标签
-    published_label: str = "published"   # 处理完成后打上的标签
+    article_dir: str = "content/posts"  # Markdown 存放根目录
+    image_dir: str = "content/images"  # 图片存放根目录
+    journal_label: str = "journal"  # 标识日志类 Issue 的标签
+    published_label: str = "published"  # 处理完成后打上的标签
     timezone: ZoneInfo = field(default_factory=lambda: ZoneInfo("Asia/Shanghai"))
-    
+
     # ── 日记格式 ──────────────────────────────────────────
-    show_entry_time: bool = True         # 是否显示条目时间
-    entry_time_format: str = "%H:%M"     # 时间格式
+    show_entry_time: bool = True  # 是否显示条目时间
+    entry_time_format: str = "%H:%M"  # 时间格式
 
     @classmethod
-    def from_env(cls, env_path: str | Path | None = None) -> "Config":
+    def from_env(cls, env_path: str | Path | None = None) -> Config:
         """从 .env 文件 + 环境变量构建 Config 实例。"""
         if env_path:
             load_dotenv(env_path, override=True)

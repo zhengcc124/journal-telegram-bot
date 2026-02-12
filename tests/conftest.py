@@ -22,10 +22,10 @@ from bot.config import Config
 from bot.github_client import GitHubClient
 from bot.handlers import MessageHandler
 
-
 # ═══════════════════════════════════════════════════════════
 # 路径 Fixtures
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def fixtures_dir() -> Path:
@@ -43,6 +43,7 @@ def sample_messages(fixtures_dir: Path) -> dict:
 # ═══════════════════════════════════════════════════════════
 # 配置 Fixtures
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def test_config() -> Config:
@@ -84,6 +85,7 @@ def test_config_no_whitelist() -> Config:
 # GitHub Fixtures
 # ═══════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_github_client(test_config: Config) -> GitHubClient:
     """创建 GitHub 客户端实例。"""
@@ -120,7 +122,7 @@ def mock_github_responses() -> dict:
             "content": {
                 "name": "existing.jpg",
                 "path": "content/images/2024/02/12/existing.jpg",
-            }
+            },
         },
     }
 
@@ -128,6 +130,7 @@ def mock_github_responses() -> dict:
 # ═══════════════════════════════════════════════════════════
 # Telegram Fixtures
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def mock_telegram_user() -> MagicMock:
@@ -144,19 +147,19 @@ def mock_telegram_user() -> MagicMock:
 def mock_telegram_bot() -> AsyncMock:
     """创建模拟 Telegram Bot。"""
     bot = AsyncMock()
-    
+
     # 模拟 get_file 返回的文件对象
     mock_file = AsyncMock()
     mock_file.file_id = "test_file_id_12345"
     mock_file.file_size = 1024
-    
+
     async def mock_download_to_memory(bio: io.BytesIO) -> None:
         """模拟下载图片到内存。"""
         bio.write(b"fake_image_data_jpeg_content")
-    
+
     mock_file.download_to_memory = mock_download_to_memory
     bot.get_file.return_value = mock_file
-    
+
     return bot
 
 
@@ -171,6 +174,7 @@ def mock_telegram_context(mock_telegram_bot: AsyncMock) -> MagicMock:
 @pytest.fixture
 def create_mock_photo():
     """工厂函数：创建模拟 PhotoSize 对象。"""
+
     def _create(file_id: str, file_size: int = 1024, width: int = 800, height: int = 600):
         photo = MagicMock()
         photo.file_id = file_id
@@ -178,12 +182,14 @@ def create_mock_photo():
         photo.width = width
         photo.height = height
         return photo
+
     return _create
 
 
 @pytest.fixture
 def create_mock_message():
     """工厂函数：创建模拟 Message 对象。"""
+
     def _create(
         message_id: int = 1,
         text: str | None = None,
@@ -199,28 +205,32 @@ def create_mock_message():
         message.photo = photo or []
         message.media_group_id = media_group_id
         message.from_user = from_user
-        
+
         # 模拟 reply_text 方法
         message.reply_text = AsyncMock()
-        
+
         return message
+
     return _create
 
 
 @pytest.fixture
 def create_mock_update():
     """工厂函数：创建模拟 Update 对象。"""
+
     def _create(message: MagicMock | None = None, effective_user: MagicMock | None = None):
         update = MagicMock()
         update.message = message
         update.effective_user = effective_user or message.from_user if message else None
         return update
+
     return _create
 
 
 # ═══════════════════════════════════════════════════════════
 # Handler Fixtures
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def message_handler(test_config: Config, mock_github_client: GitHubClient) -> MessageHandler:
@@ -231,6 +241,7 @@ def message_handler(test_config: Config, mock_github_client: GitHubClient) -> Me
 # ═══════════════════════════════════════════════════════════
 # 测试图片数据
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def sample_image_data() -> bytes:

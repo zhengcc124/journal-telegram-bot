@@ -10,7 +10,6 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 import typer
 from dotenv import dotenv_values
@@ -71,7 +70,7 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def _check_running(pid_file: Path) -> Optional[int]:
+def _check_running(pid_file: Path) -> int | None:
     if not pid_file.exists():
         return None
 
@@ -257,7 +256,9 @@ def _parse_repo_url(repo_url: str) -> tuple[str, str] | None:
     return None
 
 
-def _print_remote_setup_hint(repo_dir: Path, repo_url: str, owner: str, repo: str, branch: str) -> None:
+def _print_remote_setup_hint(
+    repo_dir: Path, repo_url: str, owner: str, repo: str, branch: str
+) -> None:
     remote = repo_url.strip() or f"git@github.com:{owner}/{repo}.git"
     console.print("\n[yellow]请先确认 GitHub 上已创建该仓库，然后执行：[/yellow]")
     console.print(f"  cd {repo_dir.resolve()}")
@@ -350,82 +351,81 @@ def _bootstrap_repo_from_munin_source(repo_dir: Path) -> dict[str, str]:
 
 def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
     """从 munin package 复制前端模板到仓库
-    
+
     Args:
         repo_dir: 目标仓库目录
         force: 如果目标目录已存在，是否强制覆盖
-        
+
     Returns:
         dict[str, str]: 复制的文件列表 {相对路径: 状态}
-        
+
     Raises:
         RuntimeError: 复制失败时抛出
         FileExistsError: 目标目录已存在且 force=False 时抛出
     """
-    import shutil
     import importlib.resources as pkg_resources
-    
+    import shutil
+
     results: dict[str, str] = {}
-    
+
     try:
         # 获取 munin 包中的 frontend 目录
         try:
-            munin_pkg = pkg_resources.files('munin')
+            munin_pkg = pkg_resources.files("munin")
         except ImportError:
             raise RuntimeError("无法找到 munin package，请确保 munin 已正确安装")
-        
-        frontend_src = munin_pkg / 'frontend'
-        
+
+        frontend_src = munin_pkg / "frontend"
+
         # 验证源目录存在
         if not frontend_src.exists():
             raise RuntimeError(f"munin package 中未找到前端模板目录: {frontend_src}")
-        
-        frontend_dst = repo_dir / 'frontend'
-        
+
+        frontend_dst = repo_dir / "frontend"
+
         # 处理目标目录已存在的情况
         if frontend_dst.exists():
             if not force:
                 raise FileExistsError(
-                    f"目标目录已存在: {frontend_dst}"
-                    f"\n使用 force=True 覆盖，或手动删除后重试"
+                    f"目标目录已存在: {frontend_dst}" f"\n使用 force=True 覆盖，或手动删除后重试"
                 )
             console.print(f"[yellow]目标目录已存在，正在覆盖: {frontend_dst}[/yellow]")
             shutil.rmtree(frontend_dst)
-        
+
         # 复制文件
         shutil.copytree(frontend_src, frontend_dst)
-        
+
         # 统计复制的文件
-        for item in frontend_dst.rglob('*'):
+        for item in frontend_dst.rglob("*"):
             if item.is_file():
                 rel_path = item.relative_to(repo_dir)
-                results[str(rel_path)] = 'created'
-        
+                results[str(rel_path)] = "created"
+
         if not results:
             raise RuntimeError("复制完成后未找到任何文件，请检查源目录")
-        
+
     except FileExistsError:
         raise
     except RuntimeError:
         raise
     except Exception as e:
         raise RuntimeError(f"复制前端模板时出错: {e}")
-    
+
     return results
 
 
 def _get_github_pages_url(config_data: dict[str, str]) -> str:
     """根据配置生成 GitHub Pages URL"""
-    owner = config_data.get('GITHUB_OWNER', '')
-    repo = config_data.get('GITHUB_REPO', '')
-    
+    owner = config_data.get("GITHUB_OWNER", "")
+    repo = config_data.get("GITHUB_REPO", "")
+
     if not owner or not repo:
         return ""
-    
+
     # 用户站点: username.github.io
     if repo.lower() == f"{owner.lower()}.github.io":
         return f"https://{owner.lower()}.github.io/"
-    
+
     # 项目站点
     return f"https://{owner.lower()}.github.io/{repo}/"
 
@@ -433,15 +433,15 @@ def _get_github_pages_url(config_data: dict[str, str]) -> str:
 def _print_github_pages_hints(config_data: dict[str, str]) -> None:
     """打印 GitHub Pages 启用提示"""
     url = _get_github_pages_url(config_data)
-    owner = config_data.get('GITHUB_OWNER', '')
-    repo = config_data.get('GITHUB_REPO', '')
-    
+    owner = config_data.get("GITHUB_OWNER", "")
+    repo = config_data.get("GITHUB_REPO", "")
+
     console.print("\n[bold cyan]🌐 GitHub Pages 设置指南[/bold cyan]")
     console.print("─" * 50)
-    
+
     if url:
         console.print(f"[green]📍 部署后访问地址: {url}[/green]")
-    
+
     console.print("\n[bold]启用 GitHub Pages 步骤:[/bold]")
     console.print("1. 访问 GitHub 仓库页面")
     console.print(f"   https://github.com/{owner}/{repo}")
@@ -449,11 +449,11 @@ def _print_github_pages_hints(config_data: dict[str, str]) -> None:
     console.print("3. 在 'Build and deployment' 部分:")
     console.print("   - Source: 选择 [bold]'GitHub Actions'[/bold]")
     console.print("4. 保存后，首次推送将自动触发部署")
-    
+
     console.print("\n[bold]站点配置:[/bold]")
     console.print("• 编辑 [cyan]frontend/site/config.yml[/cyan] 自定义站点信息")
     console.print("• 修改 [cyan]url[/cyan] 字段为上述访问地址")
-    
+
     console.print("\n[yellow]⚠️ 注意: 首次部署后，GitHub Pages 可能需要几分钟才能生效[/yellow]")
     console.print("─" * 50)
 
@@ -482,8 +482,12 @@ def _load_env_file(env_path: Path) -> dict[str, str]:
 
 def _prompt_repo_config(existing: dict[str, str], default_repo_name: str) -> dict[str, str]:
     tg_token = Prompt.ask("🤖 Telegram Bot Token", default=existing.get("TELEGRAM_BOT_TOKEN", ""))
-    allowed_users = Prompt.ask("👤 允许的用户 ID (逗号分隔，可选)", default=existing.get("ALLOWED_USER_IDS", ""))
-    gh_token = Prompt.ask("🔑 GitHub Personal Access Token (Repo 权限)", default=existing.get("GITHUB_TOKEN", ""))
+    allowed_users = Prompt.ask(
+        "👤 允许的用户 ID (逗号分隔，可选)", default=existing.get("ALLOWED_USER_IDS", "")
+    )
+    gh_token = Prompt.ask(
+        "🔑 GitHub Personal Access Token (Repo 权限)", default=existing.get("GITHUB_TOKEN", "")
+    )
     gh_repo_url_default = existing.get("GITHUB_REPO_URL", "").strip()
     if not gh_repo_url_default:
         legacy_owner = existing.get("GITHUB_OWNER", "").strip()
@@ -511,11 +515,15 @@ def _prompt_repo_config(existing: dict[str, str], default_repo_name: str) -> dic
 
     console.print("\n[bold]以下是可选的高级配置 (按回车使用默认值)[/bold]")
     branch = Prompt.ask("🌿 分支名", default=existing.get("GITHUB_BRANCH", "main"))
-    article_dir = Prompt.ask("📂 文章存放目录", default=existing.get("ARTICLE_DIR", "content/posts"))
+    article_dir = Prompt.ask(
+        "📂 文章存放目录", default=existing.get("ARTICLE_DIR", "content/posts")
+    )
     image_dir = Prompt.ask("🖼️ 图片存放目录", default=existing.get("IMAGE_DIR", "content/images"))
     tz = Prompt.ask("🕒 时区", default=existing.get("JOURNAL_TZ", "Asia/Shanghai"))
     journal_label = Prompt.ask("🏷️ 日志标签", default=existing.get("JOURNAL_LABEL", "journal"))
-    published_label = Prompt.ask("✅ 发布后标签", default=existing.get("PUBLISHED_LABEL", "published"))
+    published_label = Prompt.ask(
+        "✅ 发布后标签", default=existing.get("PUBLISHED_LABEL", "published")
+    )
 
     return {
         "TELEGRAM_BOT_TOKEN": tg_token,
@@ -597,7 +605,9 @@ def _configure_repo(repo_dir: Path, force: bool) -> dict[str, str]:
 def _git_init_and_commit(repo_dir: Path, repo_name: str) -> None:
     try:
         if not (repo_dir / ".git").exists():
-            init_result = subprocess.run(["git", "init"], cwd=repo_dir, capture_output=True, text=True)
+            init_result = subprocess.run(
+                ["git", "init"], cwd=repo_dir, capture_output=True, text=True
+            )
             if init_result.returncode != 0:
                 console.print(f"[yellow]⚠️ git init 失败: {init_result.stderr.strip()}[/yellow]")
                 return
@@ -671,12 +681,14 @@ def new(
 
     # 1. 配置仓库
     config_data = _configure_repo(target, force=force)
-    
+
     # 2. Git 初始化
     git_initialized = False
     try:
         if not (target / ".git").exists():
-            init_result = subprocess.run(["git", "init"], cwd=target, capture_output=True, text=True)
+            init_result = subprocess.run(
+                ["git", "init"], cwd=target, capture_output=True, text=True
+            )
             if init_result.returncode == 0:
                 git_initialized = True
                 console.print("[green]✅ Git 仓库已初始化[/green]")
@@ -714,7 +726,7 @@ def new(
     if git_initialized:
         try:
             subprocess.run(["git", "add", "-A"], cwd=target, capture_output=True, text=True)
-            
+
             # 检查是否有文件待提交
             staged = subprocess.run(
                 ["git", "diff", "--cached", "--quiet"],
@@ -730,7 +742,7 @@ def new(
                 if frontend_added:
                     commit_parts.append("，添加前端模板")
                 commit_msg = "".join(commit_parts)
-                
+
                 commit_result = subprocess.run(
                     ["git", "commit", "-m", commit_msg],
                     cwd=target,
@@ -753,8 +765,12 @@ def new(
         console.print("[bold green]✅ 已自动配置远端并完成首次 push[/bold green]")
     else:
         console.print(f"[yellow]⚠️ 自动推送未完成: {message}[/yellow]")
-        console.print("[yellow]常见原因：GitHub 远端仓库尚未创建，或本机 SSH/Token 权限未准备好。[/yellow]")
-        _print_remote_setup_hint(target, repo_url, config_data["GITHUB_OWNER"], config_data["GITHUB_REPO"], branch)
+        console.print(
+            "[yellow]常见原因：GitHub 远端仓库尚未创建，或本机 SSH/Token 权限未准备好。[/yellow]"
+        )
+        _print_remote_setup_hint(
+            target, repo_url, config_data["GITHUB_OWNER"], config_data["GITHUB_REPO"], branch
+        )
 
     # 打印 GitHub Pages 提示
     if frontend_added:
@@ -946,10 +962,10 @@ def logs(lines: int = typer.Option(20, "--lines", "-n", help="显示最后 N 行
         pass
 
 
-if __name__ == "__main__":
-    app()
-
-
 def main():
     """Entry point for pipx"""
     app()
+
+
+if __name__ == "__main__":
+    main()

@@ -3,16 +3,19 @@
 手动测试 _bootstrap_frontend 函数
 用于验证 munin package 中的前端文件可以正确复制
 """
-import tempfile
+
 import shutil
-from pathlib import Path
 
 # 确保可以导入 bot.cli
 import sys
+import tempfile
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from bot.cli import _bootstrap_frontend, _get_github_pages_url, _print_github_pages_hints
 from rich.console import Console
+
+from bot.cli import _bootstrap_frontend, _get_github_pages_url, _print_github_pages_hints
 
 console = Console()
 
@@ -22,7 +25,7 @@ def test_bootstrap_frontend_real():
     with tempfile.TemporaryDirectory() as tmpdir:
         target = Path(tmpdir) / "test_repo"
         target.mkdir()
-        
+
         console.print("[bold]测试 1: 正常复制前端文件[/bold]")
         try:
             results = _bootstrap_frontend(target)
@@ -61,8 +64,14 @@ def test_bootstrap_frontend_real():
 
         console.print("\n[bold]测试 4: GitHub Pages URL 生成[/bold]")
         test_cases = [
-            ({"GITHUB_OWNER": "JohnDoe", "GITHUB_REPO": "johndoe.github.io"}, "https://johndoe.github.io/"),
-            ({"GITHUB_OWNER": "MyOrg", "GITHUB_REPO": "my-project"}, "https://myorg.github.io/my-project/"),
+            (
+                {"GITHUB_OWNER": "JohnDoe", "GITHUB_REPO": "johndoe.github.io"},
+                "https://johndoe.github.io/",
+            ),
+            (
+                {"GITHUB_OWNER": "MyOrg", "GITHUB_REPO": "my-project"},
+                "https://myorg.github.io/my-project/",
+            ),
             ({}, ""),
         ]
         for config, expected in test_cases:
@@ -84,9 +93,9 @@ if __name__ == "__main__":
     console.print("=" * 60)
     console.print("[bold cyan]Munin 前端模板复制功能测试[/bold cyan]")
     console.print("=" * 60)
-    
+
     success = test_bootstrap_frontend_real()
-    
+
     console.print("\n" + "=" * 60)
     if success:
         console.print("[bold green]所有测试通过! ✅[/bold green]")

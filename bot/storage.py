@@ -11,27 +11,29 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 
 @dataclass
 class Journal:
     """日记聚合根"""
+
     id: int
     user_id: int
     date: str  # YYYY-MM-DD
     status: str  # collecting, merged
-    github_issue_url: Optional[str]  # 合并后的 GitHub Issue URL
+    github_issue_url: str | None  # 合并后的 GitHub Issue URL
     created_at: datetime
 
 
 @dataclass
 class Entry:
     """日记条目"""
+
     id: int
     journal_id: int
     source_type: str  # telegram, future: readwise, douban, etc.
-    message_id: Optional[int]
+    message_id: int | None
     content: str
     images: list[str]  # ["file_id1", "file_id2"]
     tags: list[str]
@@ -40,12 +42,12 @@ class Entry:
 
 class Storage:
     """简单的 SQLite 存储"""
-    
+
     def __init__(self, db_path: str = "data/munin.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
-    
+
     def _init_db(self) -> None:
         """初始化数据库表"""
         with sqlite3.connect(self.db_path) as conn:
@@ -77,14 +79,14 @@ class Storage:
                 CREATE INDEX IF NOT EXISTS idx_entries_journal 
                     ON entries(journal_id);
             """)
-            
+
             # 迁移：添加 github_issue_url 字段（如果不存在）
             cursor = conn.execute("PRAGMA table_info(journals)")
             columns = [row[1] for row in cursor.fetchall()]
-            if 'github_issue_url' not in columns:
+            if "github_issue_url" not in columns:
                 conn.execute("ALTER TABLE journals ADD COLUMN github_issue_url TEXT")
                 conn.commit()
-            
+
             # 用户配置表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_configs (
@@ -94,25 +96,24 @@ class Storage:
                 )
             """)
             conn.commit()
-    
-    def _get_row_value(self, row, key: str, default=None):
+
+    def _get_row_value(self, row: sqlite3.Row, key: str, default: Any = None) -> Any:
         """安全地获取行值（处理旧数据库没有该字段的情况）"""
         try:
             return row[key]
         except (KeyError, IndexError):
             return default
-    
+
     def get_or_create_journal(self, user_id: int, date: str) -> Journal:
         """获取或创建日记"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             # 尝试获取现有日记
             row = conn.execute(
-                "SELECT * FROM journals WHERE user_id = ? AND date = ?",
-                (user_id, date)
+                "SELECT * FROM journals WHERE user_id = ? AND date = ?", (user_id, date)
             ).fetchone()
-            
+
             if row:
                 return Journal(
                     id=row["id"],
@@ -122,14 +123,13 @@ class Storage:
                     github_issue_url=self._get_row_value(row, "github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
-            
+
             # 创建新日记
             cursor = conn.execute(
-                "INSERT INTO journals (user_id, date) VALUES (?, ?)",
-                (user_id, date)
+                "INSERT INTO journals (user_id, date) VALUES (?, ?)", (user_id, date)
             )
             conn.commit()
-            
+
             return Journal(
                 id=cursor.lastrowid,
                 user_id=user_id,
@@ -138,7 +138,7 @@ class Storage:
                 github_issue_url=None,
                 created_at=datetime.now(),
             )
-    
+
     def add_entry(self, entry: Entry) -> Entry:
         """添加条目"""
         with sqlite3.connect(self.db_path) as conn:
@@ -153,17 +153,14 @@ class Storage:
                     entry.content,
                     json.dumps(entry.images),
                     json.dumps(entry.tags),
-                )
+                ),
             )
             conn.commit()
-            
+
             # 从数据库重新读取以获取正确的 created_at
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM entries WHERE id = ?",
-                (cursor.lastrowid,)
-            ).fetchone()
-            
+            row = conn.execute("SELECT * FROM entries WHERE id = ?", (cursor.lastrowid,)).fetchone()
+
             return Entry(
                 id=cursor.lastrowid,
                 journal_id=entry.journal_id,
@@ -174,16 +171,15 @@ class Storage:
                 tags=entry.tags,
                 created_at=datetime.fromisoformat(row["created_at"]),
             )
-    
+
     def get_entries(self, journal_id: int) -> list[Entry]:
         """获取日记的所有条目"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT * FROM entries WHERE journal_id = ? ORDER BY created_at",
-                (journal_id,)
+                "SELECT * FROM entries WHERE journal_id = ? ORDER BY created_at", (journal_id,)
             ).fetchall()
-            
+
             return [
                 Entry(
                     id=row["id"],
@@ -197,16 +193,15 @@ class Storage:
                 )
                 for row in rows
             ]
-    
-    def get_journal(self, user_id: int, date: str) -> Optional[Journal]:
+
+    def get_journal(self, user_id: int, date: str) -> Journal | None:
         """获取指定日期的日记"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT * FROM journals WHERE user_id = ? AND date = ?",
-                (user_id, date)
+                "SELECT * FROM journals WHERE user_id = ? AND date = ?", (user_id, date)
             ).fetchone()
-            
+
             if row:
                 return Journal(
                     id=row["id"],
@@ -217,16 +212,15 @@ class Storage:
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             return None
-    
+
     def get_collecting_journals(self, before_date: str) -> list[Journal]:
         """获取指定日期之前所有未合并的日记"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT * FROM journals WHERE status = 'collecting' AND date < ?",
-                (before_date,)
+                "SELECT * FROM journals WHERE status = 'collecting' AND date < ?", (before_date,)
             ).fetchall()
-            
+
             return [
                 Journal(
                     id=row["id"],
@@ -238,27 +232,26 @@ class Storage:
                 )
                 for row in rows
             ]
-    
+
     def mark_journal_merged(self, journal_id: int, issue_url: str) -> None:
         """标记日记已合并"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "UPDATE journals SET status = 'merged', github_issue_url = ? WHERE id = ?",
-                (issue_url, journal_id)
+                (issue_url, journal_id),
             )
             conn.commit()
-    
+
     # ── 用户配置 ─────────────────────────────────────────
-    
+
     def get_user_config(self, user_id: int) -> dict:
         """获取用户配置"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT * FROM user_configs WHERE user_id = ?",
-                (user_id,)
+                "SELECT * FROM user_configs WHERE user_id = ?", (user_id,)
             ).fetchone()
-            
+
             if row:
                 return {
                     "show_entry_time": bool(row["show_entry_time"]),
@@ -269,21 +262,19 @@ class Storage:
                 "show_entry_time": True,
                 "entry_time_format": "%H:%M",
             }
-    
+
     def set_user_config(self, user_id: int, key: str, value) -> None:
         """设置用户配置"""
         with sqlite3.connect(self.db_path) as conn:
             # 先检查是否存在
             row = conn.execute(
-                "SELECT 1 FROM user_configs WHERE user_id = ?",
-                (user_id,)
+                "SELECT 1 FROM user_configs WHERE user_id = ?", (user_id,)
             ).fetchone()
-            
+
             if row:
                 # 更新
                 conn.execute(
-                    f"UPDATE user_configs SET {key} = ? WHERE user_id = ?",
-                    (value, user_id)
+                    f"UPDATE user_configs SET {key} = ? WHERE user_id = ?", (value, user_id)
                 )
             else:
                 # 插入（使用默认值填充其他字段）
@@ -292,6 +283,6 @@ class Storage:
                 conn.execute(
                     """INSERT INTO user_configs (user_id, show_entry_time, entry_time_format)
                         VALUES (?, ?, ?)""",
-                    (user_id, defaults["show_entry_time"], defaults["entry_time_format"])
+                    (user_id, defaults["show_entry_time"], defaults["entry_time_format"]),
                 )
             conn.commit()
