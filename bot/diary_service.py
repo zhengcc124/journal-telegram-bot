@@ -73,7 +73,7 @@ class DiaryService:
     
     def merge_journal(self, user_id: int, date: str) -> str | None:
         """
-        合并日记并生成 GitHub Issue
+        合并日记并生成或更新 GitHub Issue
         
         Args:
             user_id: 用户 ID
@@ -87,10 +87,6 @@ class DiaryService:
         if not journal:
             logger.warning(f"没有找到日记: user={user_id}, date={date}")
             return None
-        
-        if journal.status == "merged":
-            logger.info(f"日记已合并: journal_id={journal.id}")
-            return journal.github_issue_url  # 返回已合并的 Issue URL
         
         # 获取所有条目
         entries = self.storage.get_entries(journal.id)
@@ -107,23 +103,35 @@ class DiaryService:
             all_tags.update(entry.tags)
         all_tags.add(self.config.journal_label)
         
-        # 创建 GitHub Issue
         try:
-            issue = self.github.create_issue(
-                title=title,
-                body=body,
-                labels=list(all_tags),
-            )
-            
-            # 标记日记已合并
-            self.storage.mark_journal_merged(journal.id, issue["html_url"])
-            
-            logger.info(f"日记已合并: {date} -> {issue['html_url']}")
-            return issue["html_url"]
+            if journal.status == "merged" and journal.github_issue_url:
+                # 更新现有 Issue
+                issue_number = self._extract_issue_number(journal.github_issue_url)
+                self.github.update_issue_body(issue_number, body)
+                logger.info(f"日记已更新: {date} -> {journal.github_issue_url}")
+                return journal.github_issue_url
+            else:
+                # 创建新 Issue
+                issue = self.github.create_issue(
+                    title=title,
+                    body=body,
+                    labels=list(all_tags),
+                )
+                
+                # 标记日记已合并
+                self.storage.mark_journal_merged(journal.id, issue["html_url"])
+                
+                logger.info(f"日记已合并: {date} -> {issue['html_url']}")
+                return issue["html_url"]
             
         except Exception as e:
             logger.exception(f"合并日记失败: {date}")
             raise
+    
+    def _extract_issue_number(self, issue_url: str) -> int:
+        """从 Issue URL 提取 Issue 号"""
+        # URL 格式: https://github.com/owner/repo/issues/123
+        return int(issue_url.split("/")[-1])
     
     def should_merge(self, user_id: int, date: str) -> bool:
         """

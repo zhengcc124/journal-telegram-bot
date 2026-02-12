@@ -21,6 +21,7 @@ class Journal:
     user_id: int
     date: str  # YYYY-MM-DD
     status: str  # collecting, merged
+    github_issue_url: Optional[str]  # 合并后的 GitHub Issue URL
     created_at: datetime
 
 
@@ -54,6 +55,7 @@ class Storage:
                     user_id INTEGER NOT NULL,
                     date TEXT NOT NULL,
                     status TEXT DEFAULT 'collecting',
+                    github_issue_url TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(user_id, date)
                 );
@@ -75,6 +77,13 @@ class Storage:
                 CREATE INDEX IF NOT EXISTS idx_entries_journal 
                     ON entries(journal_id);
             """)
+            
+            # 迁移：添加 github_issue_url 字段（如果不存在）
+            cursor = conn.execute("PRAGMA table_info(journals)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'github_issue_url' not in columns:
+                conn.execute("ALTER TABLE journals ADD COLUMN github_issue_url TEXT")
+                conn.commit()
     
     def get_or_create_journal(self, user_id: int, date: str) -> Journal:
         """获取或创建日记"""
@@ -93,6 +102,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
+                    github_issue_url=row.get("github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             
@@ -108,6 +118,7 @@ class Storage:
                 user_id=user_id,
                 date=date,
                 status="collecting",
+                github_issue_url=None,
                 created_at=datetime.now(),
             )
     
@@ -178,6 +189,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
+                    github_issue_url=row.get("github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             return None
@@ -197,6 +209,7 @@ class Storage:
                     user_id=row["user_id"],
                     date=row["date"],
                     status=row["status"],
+                    github_issue_url=row.get("github_issue_url"),
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
                 for row in rows
@@ -206,7 +219,7 @@ class Storage:
         """标记日记已合并"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                "UPDATE journals SET status = 'merged' WHERE id = ?",
-                (journal_id,)
+                "UPDATE journals SET status = 'merged', github_issue_url = ? WHERE id = ?",
+                (issue_url, journal_id)
             )
             conn.commit()
