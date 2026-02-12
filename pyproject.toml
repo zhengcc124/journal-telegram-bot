@@ -20,6 +20,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.scripts]
+munin = "bot.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",

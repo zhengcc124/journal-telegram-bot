@@ -948,3 +948,8 @@ def logs(lines: int = typer.Option(20, "--lines", "-n", help="显示最后 N 行
 
 if __name__ == "__main__":
     app()
+
+
+def main():
+    """Entry point for pipx"""
+    app()
