@@ -172,25 +172,32 @@ class DiaryService:
         # 正文：合并所有条目
         body_parts = []
         
-        for i, entry in enumerate(entries):
+        for entry in entries:
             entry_parts = []
+            
+            # 添加时间（如果配置启用）
+            if self.config.show_entry_time:
+                entry_time = entry.created_at.astimezone(self.config.timezone)
+                time_str = entry_time.strftime(self.config.entry_time_format)
+                entry_parts.append(f"**{time_str}**")
             
             # 添加内容
             if entry.content:
                 entry_parts.append(entry.content)
             
-            # 添加图片引用（实际 URL 需要在 GitHub 上传后才知道）
-            # 这里只添加占位符，后续需要配合图片上传逻辑
+            # 添加图片引用
             if entry.images:
-                entry_parts.append("\n---\n")
                 for img_id in entry.images:
                     entry_parts.append(f"![]({img_id})")
             
             if entry_parts:
-                body_parts.append(f"\n### Entry {i+1}\n" if len(entries) > 1 else "")
-                body_parts.append("\n".join(entry_parts))
+                body_parts.append("\n\n".join(entry_parts))
         
-        body = "\n\n".join(body_parts)
+        # 用分隔线连接各条目
+        if len(entries) > 1:
+            body = "\n\n---\n\n".join(body_parts)
+        else:
+            body = "\n\n".join(body_parts)
         
         # 添加元数据
         body += f"\n\n---\n*自动生成的日记* | {date}"

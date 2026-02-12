@@ -45,6 +45,10 @@ class Config:
     journal_label: str = "journal"       # 标识日志类 Issue 的标签
     published_label: str = "published"   # 处理完成后打上的标签
     timezone: ZoneInfo = field(default_factory=lambda: ZoneInfo("Asia/Shanghai"))
+    
+    # ── 日记格式 ──────────────────────────────────────────
+    show_entry_time: bool = True         # 是否显示条目时间
+    entry_time_format: str = "%H:%M"     # 时间格式
 
     @classmethod
     def from_env(cls, env_path: str | Path | None = None) -> "Config":
