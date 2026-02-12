@@ -348,6 +348,35 @@ def _bootstrap_repo_from_munin_source(repo_dir: Path) -> dict[str, str]:
     return results
 
 
+def _bootstrap_frontend(repo_dir: Path) -> dict[str, str]:
+    """从 munin package 复制前端模板到仓库"""
+    import shutil
+    import importlib.resources as pkg_resources
+    
+    results: dict[str, str] = {}
+    
+    try:
+        frontend_src = pkg_resources.files('munin') / 'frontend'
+        frontend_dst = repo_dir / 'frontend'
+        
+        if frontend_dst.exists():
+            shutil.rmtree(frontend_dst)
+        
+        shutil.copytree(frontend_src, frontend_dst)
+        
+        # 统计复制的文件
+        for item in frontend_dst.rglob('*'):
+            if item.is_file():
+                rel_path = item.relative_to(repo_dir)
+                results[str(rel_path)] = 'created'
+        
+    except Exception as e:
+        console.print(f"[yellow]⚠️ 复制前端模板时出错: {e}[/yellow]")
+        raise
+    
+    return results
+
+
 def _ensure_gitignore_has_munin(repo_dir: Path) -> None:
     gitignore = repo_dir / ".gitignore"
     entry = ".munin/"
@@ -560,6 +589,28 @@ def new(
 
     config_data = _configure_repo(target, force=force)
     _git_init_and_commit(target, repo_name=target.name)
+
+    # 可选：添加前端展示页面
+    if Confirm.ask("🌐 是否添加 GitHub Pages 前端展示页面？", default=True):
+        console.print("[bold]🔧 正在复制前端模板...[/bold]")
+        try:
+            results = _bootstrap_frontend(target)
+            for file_path in list(results.keys())[:5]:  # 只显示前5个文件
+                console.print(f"[green]  + {file_path}[/green]")
+            if len(results) > 5:
+                console.print(f"[green]  ... 共 {len(results)} 个文件[/green]")
+            
+            # 前端文件也需要提交
+            subprocess.run(["git", "add", "-A"], cwd=target, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "commit", "-m", "Add frontend templates for GitHub Pages"],
+                cwd=target, capture_output=True, text=True
+            )
+            console.print("[green]✅ 前端模板已添加并提交[/green]")
+            console.print(f"[cyan]部署后访问: https://{config_data['GITHUB_OWNER']}.github.io/{config_data['GITHUB_REPO']}/[/cyan]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️ 添加前端模板失败: {e}[/yellow]")
+            console.print("[yellow]你可以稍后手动添加前端模板[/yellow]")
 
     repo_url = config_data.get("GITHUB_REPO_URL", "").strip()
     branch = config_data.get("GITHUB_BRANCH", "main").strip()
