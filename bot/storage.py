@@ -158,6 +158,7 @@ class Storage:
             conn.commit()
             
             # 从数据库重新读取以获取正确的 created_at
+            conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT * FROM entries WHERE id = ?",
                 (cursor.lastrowid,)
