@@ -1,7 +1,23 @@
 # 📝 Munin — 记忆之鸦
 
 > 用 Telegram 写日志，用 GitHub 发布博客。
-> 在手机上随手记录，自动变成你的个人博客文章。
+> 在手机上随手记录，自动变成你的个人博客网站。
+
+## ✨ 效果展示
+
+Munin 生成一个**极简风格的博客网站**，部署在 GitHub Pages：
+
+| 首页列表 | 文章详情 |
+|---------|---------|
+| 极简时间线布局，首条全文展示 | 清晰的文章排版，标签导航 |
+| 支持分页浏览 | 上一篇/下一篇导航 |
+
+**设计特点**：
+- 🎨 **极简风格** - 干净的白底黑字，专注内容阅读
+- 📱 **响应式设计** - 完美适配手机和桌面
+- 🏷️ **标签系统** - 自动提取 Telegram 消息中的 `#标签`
+- 📄 **分页功能** - 文章列表自动分页，每页 10 篇
+- 🔝 **首条全文** - 首页最新文章展示完整内容，其他显示标题
 
 ## 背景：为什么做这个项目？
 
@@ -23,11 +39,30 @@
 具体来说：
 
 1. 📱 你在手机上打开 Telegram，给 Bot 发一条消息
-2. 🤖 Bot 收到消息，创建一个 GitHub Issue（图片会自动上传到仓库）
-3. ⚙️ GitHub Actions 检测到新 Issue，自动将其转换为 Markdown 文件
-4. 🌐 GitHub Pages 部署更新，你的博客上就多了一篇新文章
+2. 🤖 Bot 收到消息，暂存到本地（支持多条合并为一天日记）
+3. ⚙️ 午夜自动合并或手动 `/end` 命令触发，生成 GitHub Issue
+4. 🔄 GitHub Actions 自动转换为 Markdown 并部署
+5. 🌐 GitHub Pages 发布更新，你的博客上就多了新文章
 
 **整个过程不到 1 分钟，你只需要动动手指发条消息。**
+
+## 🚀 功能特性
+
+| 功能 | 说明 |
+|-----|------|
+| 💬 **Telegram Bot** | 支持文字、图片、混合消息 |
+| 📸 **相册支持** | 支持 Media Group（多图相册），自动处理多张图片 |
+| 🏷️ **智能标签** | 自动提取 `#标签`，支持中文和英文 |
+| 📅 **日记合并** | 一天多条消息自动合并为单篇文章 |
+| ⏰ **自动发布** | 跨天时自动合并发布，或手动 `/end` 立即发布 |
+| 📋 **命令菜单** | Telegram 内置命令菜单：`/start`, `/help`, `/end`, `/config` |
+| ⚙️ **用户配置** | 时间显示开关、12/24小时制格式 |
+| 🔒 **权限控制** | 白名单机制，仅允许指定用户使用 |
+| 🎨 **极简主题** | 干净美观的博客界面 |
+| 📄 **分页浏览** | 文章列表自动分页 |
+| 🔝 **首条全文** | 首页最新文章展示完整内容 |
+| 🔔 **部署通知** | GitHub Pages 部署完成后自动通知（Issue 关闭标记） |
+| 🖼️ **图片托管** | 图片自动上传到 GitHub 仓库，无需第三方图床 |
 
 ## 优势
 
@@ -66,6 +101,43 @@
 
 > **Munin**（穆宁）——北欧神话中奥丁的渡鸦，名字意为"记忆"。它每天飞出去收集世间的信息，再带回给主人。就像这个 Bot 帮你收集日志、投递到 GitHub 一样。
 
+## 目录结构
+
+生成的日志仓库采用以下目录结构：
+
+```
+my-journal/
+├── .github/
+│   └── workflows/
+│       └── publish.yml          # 自动发布工作流
+├── .munin/
+│   └── .env                     # 本地配置（敏感信息，不提交）
+├── content/
+│   ├── posts/                   # Markdown 文章目录
+│   │   ├── 2024/
+│   │   │   ├── 0130.md         # 文章文件：MMdd.md 格式
+│   │   │   └── 0213.md
+│   │   └── 2025/
+│   │       └── 0101.md
+│   └── images/                  # 图片目录
+│       └── 2024/
+│           └── 01/
+│               └── 30/
+│                   └── photo_143025_abcdef12.jpg
+├── scripts/
+│   └── issue_to_md.py           # Issue 转 Markdown 脚本
+├── munin/                       # 前端站点生成器
+│   └── frontend/
+│       ├── site/
+│       │   ├── templates/       # HTML 模板
+│       │   ├── assets/          # CSS/JS 资源
+│       │   └── build.py         # 静态站点构建脚本
+│       └── dist/                # 生成的网站（GitHub Pages 部署）
+└── .gitignore
+```
+
+**文章路径格式**：`content/posts/YYYY/MMdd.md`
+
 ## 快速开始
 
 ### 前置条件
@@ -75,103 +147,47 @@
 - Telegram 账号
 - GitHub 账号
 
-### 第一步：创建 Telegram Bot
-
-1. 在 Telegram 中搜索 **@BotFather**，发送 `/newbot`
-2. 按提示输入 Bot 名称和用户名
-3. 记下返回的 **Bot Token**（形如 `123456:ABC-DEF...`）
-4. 给 Bot 发一条消息，然后访问 `https://api.telegram.org/bot<你的Token>/getUpdates`，找到你的 **User ID**（`message.from.id` 字段）
-
-### 第二步：创建 GitHub 仓库
-
-1. 在 GitHub 上创建一个**新的公开仓库**（比如叫 `my-journal`）
-2. 创建一个 **Personal Access Token**：
-   - 进入 GitHub → Settings → Developer settings → Personal access tokens → **Tokens (classic)**
-   - 点击 **Generate new token (classic)**
-   - 勾选权限：`repo`（完整仓库访问权限）
-   - 生成并记下 Token
-3. 在仓库中创建两个目录（也可以让 Bot 自动创建）：
-   - `content/posts/` — 存放文章
-   - `content/images/` — 存放图片
-
-### 第三步：初始化日志仓库（自动化）
-
-你不需要手动复制 workflow 和脚本了，`munin` 会自动写入：
-
-- `.github/workflows/publish.yml`
-- `scripts/issue_to_md.py`
-- `.munin/.env`（仓库私有配置）
-- `.gitignore` 中自动追加 `.munin/`（避免敏感配置入库）
-
-### 第四步：安装与运行 Bot（客户端）
-
-#### 1. 安装
+### 安装
 
 ```bash
-# 推荐：使用 pipx 安装到隔离环境（无需手动管理虚拟环境）
+# 使用 pipx 安装（推荐，隔离环境）
 pipx install git+https://github.com/zhengcc124/journal-telegram-bot.git
 
-# 或者：开发者模式（源码运行）
-git clone https://github.com/zhengcc124/journal-telegram-bot.git
-cd journal-telegram-bot
-pip install -e .
+# 或使用 pip
+pip install git+https://github.com/zhengcc124/journal-telegram-bot.git
 ```
 
-#### 2. 创建并配置日志仓库
-
-在你希望放置日志仓库的目录下运行：
+### 创建并配置日志仓库
 
 ```bash
+# 创建新仓库
 munin new my-journal
 ```
 
-它会：
-
-1. 创建 `my-journal/` 目录（若不存在）
-2. 交互式收集 Telegram/GitHub 配置
-3. 输入 GitHub 仓库地址（HTTPS/SSH，都支持，必填）
-4. 写入仓库配置到 `my-journal/.munin/.env`
-5. 自动写入 workflow + 转换脚本
-6. 执行 `git init` 并自动提交一次初始化 commit
-7. 自动尝试 `git remote add origin` + 首次 `git push`
-
-如果仓库已经存在，只想重配当前仓库参数：
+交互式配置：
+1. 输入 Telegram Bot Token（从 @BotFather 获取）
+2. 输入 GitHub Token（从 GitHub Settings 创建）
+3. 输入 GitHub 仓库地址（如 `https://github.com/username/my-journal`）
 
 ```bash
+# 启动 Bot
 cd my-journal
-munin config
-```
-
-> 如果你还没在 GitHub 创建远端仓库，`munin` 会明确提示并给出可直接执行的 `git` 命令。
-
-#### 3. 启动 Bot（在仓库目录内）
-
-```bash
-cd my-journal
-```
-
-```bash
-# 前台启动（适合测试，按 Ctrl+C 停止）
 munin start
 
-# 后台启动（Daemon 模式，适合长期运行）
+# 后台运行
 munin start --daemon
-```
 
-#### 4. 管理 Bot
-
-```bash
-# 查看运行状态
+# 查看状态
 munin status
 
-# 查看实时日志
+# 查看日志
 munin logs
 
-# 停止后台 Bot
+# 停止 Bot
 munin stop
 ```
 
-### 第五步：试一试！
+### 开始使用
 
 在 Telegram 中找到你的 Bot，发送：
 
@@ -179,64 +195,67 @@ munin stop
 今天天气真好 #生活 #随想
 ```
 
-几秒后你会收到确认回复，然后去 GitHub 仓库看看，Issue 和 Markdown 文件都自动生成了 🎉
+或发送图片/相册：
 
-## 常用命令参考
+```
+周末出游，风景不错 #旅行
+[附加多张照片]
+```
 
-```bash
+发送 `/end` 立即合并发布，或等待午夜自动发布。
+
+## 常用命令
+
+```
 $ munin --help
 
 Commands:
   new     创建并初始化日志仓库
-  config  配置当前仓库（.munin/.env）
-  start   启动 Bot (支持 --daemon)
-  stop    停止当前仓库后台运行的 Bot
-  status  查看运行状态
-  logs    查看当前仓库日志 (tail -f 效果)
+  config  配置当前仓库（交互式）
+  start   启动 Bot（支持 --daemon 后台运行）
+  stop    停止后台运行的 Bot
+  status  查看 Bot 运行状态
+  logs    查看实时日志
 ```
+
+### Telegram Bot 命令
+
+| 命令 | 功能 |
+|-----|------|
+| `/start` | 开始使用，显示欢迎信息 |
+| `/help` | 显示帮助文档 |
+| `/end` | 立即合并今天的日记并发布 |
+| `/config` | 查看/修改配置（时间显示、格式等） |
 
 ## macOS 开机自启 (可选)
 
-虽然 `munin start --daemon` 可以后台运行，但重启电脑后需要手动执行。如果你希望开机自启，可以使用 `launchd`。
+```bash
+# 查找 munin 路径
+which munin
 
-1. 找到 `munin` 的路径：
-   ```bash
-   which munin
-   # 例如输出：/Users/yourname/.local/bin/munin
-   ```
+# 编辑 plist 文件，替换路径
+vi ~/Library/LaunchAgents/com.munin.bot.plist
 
-2. 修改 `macos/com.journal.bot.plist`，将程序路径替换为上面的输出，参数改为 `start`。
+# 加载服务
+launchctl load ~/Library/LaunchAgents/com.munin.bot.plist
+```
 
-3. 加载 plist：
-   ```bash
-   cp macos/com.journal.bot.plist ~/Library/LaunchAgents/
-   launchctl load ~/Library/LaunchAgents/com.journal.bot.plist
-   ```
+## 环境变量
 
-## 环境变量说明
-
-配置保存在每个日志仓库自己的 `.munin/.env` 中（例如 `my-journal/.munin/.env`），支持以下选项：
+配置保存在 `.munin/.env` 中：
 
 | 变量名 | 必填 | 说明 |
 |-------|------|------|
 | `TELEGRAM_BOT_TOKEN` | ✅ | Telegram Bot Token |
-| `ALLOWED_USER_IDS` | ❌ | 允许使用的 Telegram 用户 ID，逗号分隔 |
+| `ALLOWED_USER_IDS` | ❌ | 允许的用户 ID，逗号分隔 |
 | `GITHUB_TOKEN` | ✅ | GitHub Personal Access Token |
-| `GITHUB_OWNER` | ✅ | GitHub 用户名或组织名 |
-| `GITHUB_REPO` | ✅ | 仓库名 |
-| `GITHUB_REPO_URL` | ✅ | 仓库地址（支持 HTTPS/SSH，用于自动推送） |
-| `GITHUB_BRANCH` | ❌ | 分支名 (默认 main) |
-| `ARTICLE_DIR` | ❌ | Markdown 文章存放目录 |
-| `IMAGE_DIR` | ❌ | 图片存放目录 |
-| `JOURNAL_LABEL` | ❌ | 日志 Issue 标签（默认 `journal`） |
-| `PUBLISHED_LABEL` | ❌ | 发布完成后标签（默认 `published`） |
-| `JOURNAL_TZ` | ❌ | 时区 (默认 Asia/Shanghai) |
+| `GITHUB_REPO_URL` | ✅ | 仓库地址（HTTPS/SSH） |
+| `JOURNAL_TZ` | ❌ | 时区（默认 Asia/Shanghai） |
 
 ## 多仓库与 Token 约束
 
-- 推荐关系：`1 Telegram Bot Token ↔ 1 日志仓库`
-- 本机会做 Token 运行冲突检查：同一个 Token 不能同时被两个仓库进程启动
-- 这个检查是本机级别；如果你在另一台机器也启动了同一个 Token，Telegram 仍可能出现轮询冲突
+- 推荐：`1 Telegram Bot ↔ 1 日志仓库`
+- 本机检查：同一 Token 不能同时运行多个实例
 
 ## License
 

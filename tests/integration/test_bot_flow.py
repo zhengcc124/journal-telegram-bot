@@ -598,3 +598,273 @@ class TestPerformanceScenarios:
         create_issue_call = setup_github_api["create_issue"].calls[0]
         request_body = json.loads(create_issue_call.request.content)
         assert len(request_body["body"]) > 5000
+
+
+@pytest.mark.integration
+class TestMediaGroupFlow:
+    """测试 Media Group（相册/多图）处理流程。
+
+    Media Group 是 Telegram 中用户一次发送多张图片组成的相册，
+    每条消息共享同一个 media_group_id，但每条消息只包含一张图片。
+    """
+
+    @pytest.mark.asyncio
+    async def test_media_group_single_photo_message(
+        self,
+        setup_github_api,
+        make_handler,
+        make_update,
+        make_context,
+        test_config,
+        mock_telegram_user,
+    ) -> None:
+        """
+        测试 Media Group 中的单条消息处理。
+
+        Media Group 的每条消息只有一张图片（photo 数组只有一个元素），
+        但共享同一个 media_group_id。
+        """
+        handler = make_handler
+        context = make_context()
+
+        # 创建 Media Group 中的单条消息（只有一张图）
+        message = MagicMock()
+        message.message_id = 800
+        message.from_user = mock_telegram_user
+        message.media_group_id = "media_group_123"  # 有 media_group_id
+        message.photo = [
+            MagicMock(file_id="photo_1_large", file_size=2000),  # 只有一张图
+        ]
+        message.caption = "相册照片 1 #旅行"
+        message.text = None
+        message.reply_text = AsyncMock()
+
+        # 设置文件下载 mock
+        async def mock_download(bio):
+            bio.write(b"fake_jpeg_data_1")
+
+        mock_file = AsyncMock()
+        mock_file.file_id = "photo_1_large"
+        mock_file.download_to_memory = mock_download
+        context.bot.get_file.return_value = mock_file
+
+        # 执行处理
+        update = make_update(message)
+        await handler.handle_message(update, context)
+
+        # 验证图片上传和 Issue 创建
+        assert setup_github_api["upload_file"].called
+        assert setup_github_api["create_issue"].called
+
+    @pytest.mark.asyncio
+    async def test_media_group_multiple_messages_sequence(
+        self,
+        setup_github_api,
+        make_handler,
+        make_update,
+        make_context,
+        test_config,
+        mock_telegram_user,
+    ) -> None:
+        """
+        测试连续接收 Media Group 的多条消息。
+
+        模拟用户发送一个包含 3 张图片的相册，
+        每条消息有相同的 media_group_id，但不同的图片。
+        """
+        handler = make_handler
+        context = make_context()
+
+        media_group_id = "media_group_456"
+
+        # 模拟相册中的 3 条消息
+        for i in range(3):
+            message = MagicMock()
+            message.message_id = 810 + i
+            message.from_user = mock_telegram_user
+            message.media_group_id = media_group_id  # 相同的 media_group_id
+            message.photo = [
+                MagicMock(file_id=f"photo_{i}_large", file_size=2000 + i * 100),
+            ]
+            # 只有第一条消息有 caption
+            message.caption = f"相册照片 #{i+1} #旅行" if i == 0 else None
+            message.text = None
+            message.reply_text = AsyncMock()
+
+            # 设置文件下载 mock
+            async def make_mock_download(idx):
+                async def mock_download(bio):
+                    bio.write(f"fake_jpeg_data_{idx}".encode())
+                return mock_download
+
+            mock_file = AsyncMock()
+            mock_file.file_id = f"photo_{i}_large"
+            mock_file.download_to_memory = await make_mock_download(i)
+            context.bot.get_file.return_value = mock_file
+
+            # 执行处理
+            update = make_update(message)
+            await handler.handle_message(update, context)
+
+        # 验证创建了 3 个 Issue（每条消息创建一个）
+        assert setup_github_api["create_issue"].call_count == 3
+        # 验证上传了 3 张图片
+        assert setup_github_api["upload_file"].call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_media_group_with_caption_tags(
+        self,
+        setup_github_api,
+        make_handler,
+        make_update,
+        make_context,
+        test_config,
+        mock_telegram_user,
+    ) -> None:
+        """
+        测试 Media Group 消息中的标签提取。
+
+        只有第一条消息的 caption 包含标签，后续消息没有 caption。
+        """
+        handler = make_handler
+        context = make_context()
+
+        message = MagicMock()
+        message.message_id = 820
+        message.from_user = mock_telegram_user
+        message.media_group_id = "media_group_789"
+        message.photo = [MagicMock(file_id="photo_captioned", file_size=2000)]
+        message.caption = "周末旅行 #周末 #风景 #摄影"
+        message.text = None
+        message.reply_text = AsyncMock()
+
+        # 设置文件下载 mock
+        async def mock_download(bio):
+            bio.write(b"fake_jpeg_data")
+
+        mock_file = AsyncMock()
+        mock_file.file_id = "photo_captioned"
+        mock_file.download_to_memory = mock_download
+        context.bot.get_file.return_value = mock_file
+
+        # 执行处理
+        update = make_update(message)
+        await handler.handle_message(update, context)
+
+        # 验证标签
+        assert setup_github_api["create_issue"].called
+        create_issue_call = setup_github_api["create_issue"].calls[0]
+        request_body = json.loads(create_issue_call.request.content)
+
+        # 验证标签包含提取的内容
+        assert "周末" in request_body["labels"]
+        assert "风景" in request_body["labels"]
+        assert "摄影" in request_body["labels"]
+        assert "journal" in request_body["labels"]
+
+    @pytest.mark.asyncio
+    async def test_media_group_photo_without_caption(
+        self,
+        setup_github_api,
+        make_handler,
+        make_update,
+        make_context,
+        test_config,
+        mock_telegram_user,
+    ) -> None:
+        """
+        测试 Media Group 中的无 caption 图片消息。
+
+        Media Group 中只有第一条消息通常有 caption，其他都是纯图片。
+        """
+        handler = make_handler
+        context = make_context()
+
+        message = MagicMock()
+        message.message_id = 830
+        message.from_user = mock_telegram_user
+        message.media_group_id = "media_group_no_caption"
+        message.photo = [MagicMock(file_id="photo_no_caption", file_size=2000)]
+        message.caption = None  # 无 caption
+        message.text = None
+        message.reply_text = AsyncMock()
+
+        # 设置文件下载 mock
+        async def mock_download(bio):
+            bio.write(b"fake_jpeg_data_no_caption")
+
+        mock_file = AsyncMock()
+        mock_file.file_id = "photo_no_caption"
+        mock_file.download_to_memory = mock_download
+        context.bot.get_file.return_value = mock_file
+
+        # 执行处理
+        update = make_update(message)
+        await handler.handle_message(update, context)
+
+        # 验证图片上传
+        assert setup_github_api["upload_file"].called
+        assert setup_github_api["create_issue"].called
+
+        # 验证 Issue 正文只包含图片引用
+        create_issue_call = setup_github_api["create_issue"].calls[0]
+        request_body = json.loads(create_issue_call.request.content)
+        assert "![](" in request_body["body"]
+        # 只有 journal 标签（没有用户标签）
+        assert request_body["labels"] == ["journal"]
+
+    @pytest.mark.asyncio
+    async def test_mixed_photo_sizes_in_media_group(
+        self,
+        setup_github_api,
+        make_handler,
+        make_update,
+        make_context,
+        test_config,
+        mock_telegram_user,
+    ) -> None:
+        """
+        测试 Media Group 中不同尺寸的图片处理。
+
+        验证系统会选择最大尺寸的图片上传。
+        """
+        handler = make_handler
+        context = make_context()
+
+        message = MagicMock()
+        message.message_id = 840
+        message.from_user = mock_telegram_user
+        message.media_group_id = "media_group_sizes"
+        # Media Group 中每张图通常也有多种尺寸
+        message.photo = [
+            MagicMock(file_id="photo_small", file_size=500, width=320, height=240),
+            MagicMock(file_id="photo_medium", file_size=1500, width=800, height=600),
+            MagicMock(file_id="photo_large", file_size=3000, width=1280, height=960),
+        ]
+        message.caption = "高清照片 #高清"
+        message.text = None
+        message.reply_text = AsyncMock()
+
+        # 设置文件下载 mock
+        downloaded_file_id = None
+
+        async def mock_download(bio):
+            bio.write(b"fake_jpeg_large")
+
+        async def mock_get_file(file_id):
+            nonlocal downloaded_file_id
+            downloaded_file_id = file_id
+            mock_file = AsyncMock()
+            mock_file.file_id = file_id
+            mock_file.download_to_memory = mock_download
+            return mock_file
+
+        context.bot.get_file.side_effect = mock_get_file
+
+        # 执行处理
+        update = make_update(message)
+        await handler.handle_message(update, context)
+
+        # 验证选择了最大尺寸的图片（file_size=3000）
+        assert downloaded_file_id == "photo_large"
+        assert setup_github_api["upload_file"].called
