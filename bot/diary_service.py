@@ -210,9 +210,6 @@ class DiaryService:
         # 用换行连接各条目（不使用分割线）
         body = "\n\n".join(body_parts)
 
-        # 添加元数据
-        body += f"\n\n---\n*自动生成的日记* | {date}"
-
         return title, body
 
     def get_or_create_today(self, user_id: int) -> Journal:
