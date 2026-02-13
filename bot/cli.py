@@ -378,9 +378,13 @@ def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
 
         frontend_src = munin_pkg / "frontend"
 
-        # 验证源目录存在
-        if not frontend_src.exists():
-            raise RuntimeError(f"munin package 中未找到前端模板目录: {frontend_src}")
+        # 验证源目录存在 (Traversable 类型检查)
+        try:
+            if not frontend_src.exists():  # type: ignore[attr-defined]
+                raise RuntimeError(f"munin package 中未找到前端模板目录: {frontend_src}")
+        except AttributeError:
+            # 某些版本的 importlib.resources 可能没有 exists()
+            pass
 
         frontend_dst = repo_dir / "frontend"
 
@@ -393,8 +397,8 @@ def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
             console.print(f"[yellow]目标目录已存在，正在覆盖: {frontend_dst}[/yellow]")
             shutil.rmtree(frontend_dst)
 
-        # 复制文件
-        shutil.copytree(frontend_src, frontend_dst)
+        # 复制文件 (使用 str() 转换 Traversable 为路径字符串)
+        shutil.copytree(str(frontend_src), frontend_dst)
 
         # 统计复制的文件
         for item in frontend_dst.rglob("*"):
