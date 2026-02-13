@@ -5,9 +5,29 @@ __pycache__/
 venv/
 .venv/
 *.egg-info/
+build/
+dist/
+
+# 测试
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # 环境变量
 .env
+.munin/
+
+# 数据库
+*.db
+data/
+
+# 本地内容（用户日记）
+content/
+
+# 本地测试仓库
+Raven/
 
 # macOS
 .DS_Store
