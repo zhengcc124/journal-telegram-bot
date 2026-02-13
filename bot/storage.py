@@ -61,7 +61,7 @@ class Storage:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(user_id, date)
                 );
-                
+
                 CREATE TABLE IF NOT EXISTS entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     journal_id INTEGER NOT NULL,
@@ -73,10 +73,10 @@ class Storage:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (journal_id) REFERENCES journals(id)
                 );
-                
-                CREATE INDEX IF NOT EXISTS idx_journals_user_date 
+
+                CREATE INDEX IF NOT EXISTS idx_journals_user_date
                     ON journals(user_id, date);
-                CREATE INDEX IF NOT EXISTS idx_entries_journal 
+                CREATE INDEX IF NOT EXISTS idx_entries_journal
                     ON entries(journal_id);
             """)
 
@@ -143,7 +143,7 @@ class Storage:
         """添加条目"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                """INSERT INTO entries 
+                """INSERT INTO entries
                     (journal_id, source_type, message_id, content, images, tags)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (

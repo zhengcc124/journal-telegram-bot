@@ -114,7 +114,7 @@ class TestBootstrapFrontend:
 
             from bot.cli import _bootstrap_frontend
 
-            results = _bootstrap_frontend(target_repo, force=True)
+            _bootstrap_frontend(target_repo, force=True)
 
             # Verify old file is gone
             assert not (target_repo / "frontend" / "old_file.txt").exists()

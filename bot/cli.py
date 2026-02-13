@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -153,7 +154,7 @@ def _acquire_token_lock(token: str, repo_root: Path, pid: int, state: str) -> st
     try:
         fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        raise RuntimeError("该 Telegram Bot Token 正在被本机其他进程启动")
+        raise RuntimeError("该 Telegram Bot Token 正在被本机其他进程启动") from None
 
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         payload = {
@@ -373,7 +374,7 @@ def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
         try:
             munin_pkg = pkg_resources.files("munin")
         except ImportError:
-            raise RuntimeError("无法找到 munin package，请确保 munin 已正确安装")
+            raise RuntimeError("无法找到 munin package，请确保 munin 已正确安装") from None
 
         frontend_src = munin_pkg / "frontend"
 
@@ -409,7 +410,7 @@ def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
     except RuntimeError:
         raise
     except Exception as e:
-        raise RuntimeError(f"复制前端模板时出错: {e}")
+        raise RuntimeError(f"复制前端模板时出错: {e}") from e
 
     return results
 
@@ -817,42 +818,43 @@ def start(
     except RuntimeError as e:
         console.print(f"[red]❌ {e}[/red]")
         console.print("请先运行: [bold]munin config[/bold]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if daemon:
         console.print("🚀 正在后台启动 Bot...")
 
         token_hash = ""
-        log_f = open(paths["log"], "a", encoding="utf-8")
         try:
-            token_hash = _acquire_token_lock(token, paths["root"], os.getpid(), state="starting")
+            with open(paths["log"], "a", encoding="utf-8") as log_f:
+                token_hash = _acquire_token_lock(
+                    token, paths["root"], os.getpid(), state="starting"
+                )
 
-            child_env = os.environ.copy()
-            child_env["MUNIN_ENV_PATH"] = str(paths["env"])
+                child_env = os.environ.copy()
+                child_env["MUNIN_ENV_PATH"] = str(paths["env"])
 
-            proc = subprocess.Popen(
-                [sys.executable, "-m", "bot.main"],
-                cwd=paths["root"],
-                env=child_env,
-                stdout=log_f,
-                stderr=log_f,
-                start_new_session=True,
-            )
+                proc = subprocess.Popen(
+                    [sys.executable, "-m", "bot.main"],
+                    cwd=paths["root"],
+                    env=child_env,
+                    stdout=log_f,
+                    stderr=log_f,
+                    start_new_session=True,
+                )
 
-            paths["pid"].write_text(str(proc.pid), encoding="utf-8")
-            _write_token_lock(token_hash, paths["root"], proc.pid, state="running")
-            _write_proc_meta(proc.pid, paths["root"], token_hash, paths["log"])
+                paths["pid"].write_text(str(proc.pid), encoding="utf-8")
+                _write_token_lock(token_hash, paths["root"], proc.pid, state="running")
+                _write_proc_meta(proc.pid, paths["root"], token_hash, paths["log"])
 
-            console.print(f"[bold green]✅ Bot 已在后台启动 (PID: {proc.pid})[/bold green]")
-            console.print(f"📄 日志文件: {paths['log']}")
-            console.print("使用 [bold]munin logs[/bold] 查看实时日志")
+                console.print(f"[bold green]✅ Bot 已在后台启动 (PID: {proc.pid})[/bold green]")
+                console.print(f"📄 日志文件: {paths['log']}")
+                console.print("使用 [bold]munin logs[/bold] 查看实时日志")
+
         except Exception as e:
             if token_hash:
                 _release_token_lock(token_hash, expected_repo=paths["root"])
             console.print(f"[red]启动失败: {e}[/red]")
-            raise typer.Exit(1)
-        finally:
-            log_f.close()
+            raise typer.Exit(1) from e
 
         return
 
@@ -868,7 +870,7 @@ def start(
         main(env_path=paths["env"])
     except RuntimeError as e:
         console.print(f"[red]❌ 启动被拒绝: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except KeyboardInterrupt:
         console.print("\n[yellow]Bot 已停止[/yellow]")
     finally:
@@ -956,10 +958,8 @@ def logs(lines: int = typer.Option(20, "--lines", "-n", help="显示最后 N 行
         return
 
     console.print(f"[bold]显示最后 {lines} 行日志 (Ctrl+C 退出):[/bold]")
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         subprocess.run(["tail", "-f", "-n", str(lines), str(paths["log"])])
-    except KeyboardInterrupt:
-        pass
 
 
 def main():

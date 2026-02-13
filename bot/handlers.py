@@ -234,7 +234,7 @@ class BotHandlers:
                 image_refs = await self._upload_photos(photos, context)
 
             # 添加到日记
-            entry = self.diary_service.add_message(
+            self.diary_service.add_message(
                 user_id=user_id,
                 message_id=message_id,
                 content=text,

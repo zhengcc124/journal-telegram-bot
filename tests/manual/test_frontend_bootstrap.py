@@ -30,7 +30,7 @@ def test_bootstrap_frontend_real():
         try:
             results = _bootstrap_frontend(target)
             console.print(f"[green]✅ 成功复制 {len(results)} 个文件[/green]")
-            for i, path in enumerate(list(results.keys())[:3]):
+            for _i, path in enumerate(list(results.keys())[:3]):
                 console.print(f"  + {path}")
             if len(results) > 3:
                 console.print(f"  ... 共 {len(results)} 个文件")

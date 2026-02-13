@@ -7,6 +7,7 @@ GitHubClient 模块单元测试
 from __future__ import annotations
 
 import base64
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -14,7 +15,7 @@ import respx
 from httpx import Response
 
 from bot.config import Config
-from bot.github_client import GitHubClient
+from bot.github_client import GitHubAPIError, GitHubClient
 
 
 @pytest.mark.unit
@@ -133,7 +134,7 @@ class TestCreateIssue:
             )
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(GitHubAPIError):
             client.create_issue(title="Test", body="Body")
 
 
@@ -339,7 +340,7 @@ class TestGitHubApiErrors:
             )
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(GitHubAPIError):
             client.create_issue(title="Test", body="Body")
 
     @respx.mock
@@ -356,7 +357,7 @@ class TestGitHubApiErrors:
             )
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(GitHubAPIError):
             client.create_issue(title="Test", body="Body")
 
 

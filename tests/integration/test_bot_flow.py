@@ -536,7 +536,7 @@ class TestComplexScenarios:
         request_body = json.loads(create_issue_call.request.content)
 
         # journal 不应该在用户提供的标签中（但会自动添加）
-        user_tags = [l for l in request_body["labels"] if l != "journal"]
+        user_tags = [label for label in request_body["labels"] if label != "journal"]
         assert "journal" not in user_tags
         # 但应该自动添加一次
         assert request_body["labels"].count("journal") == 1
