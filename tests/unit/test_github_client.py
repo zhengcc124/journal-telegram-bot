@@ -207,7 +207,7 @@ class TestUploadFile:
         ).mock(
             return_value=Response(
                 200,
-                json={"content": {"name": "existing.jpg", "path": "content/images/existing.jpg"}},
+                json={"content": {"name": "existing.jpg", "path": "content/images/existing.jpg", "html_url": "https://github.com/test_owner/test_repo/blob/main/content/images/existing.jpg"}},
             )
         )
 
@@ -230,7 +230,7 @@ class TestUploadFile:
 
         put_route = respx.put(
             "https://api.github.com/repos/test_owner/test_repo/contents/content/images/test.jpg"
-        ).mock(return_value=Response(201, json={"content": {}}))
+        ).mock(return_value=Response(201, json={"content": {"html_url": "https://github.com/test_owner/test_repo/blob/main/content/images/test.jpg"}}))
 
         client.upload_file(
             file_path="content/images/test.jpg",
@@ -375,6 +375,7 @@ class TestGitHubClientEdgeCases:
                 201,
                 json={
                     "number": 1,
+                    "html_url": "https://github.com/test_owner/test_repo/issues/1",
                     "labels": [{"name": "journal"}],
                 },
             )
@@ -396,7 +397,7 @@ class TestGitHubClientEdgeCases:
 
         put_route = respx.put(
             "https://api.github.com/repos/test_owner/test_repo/contents/test.txt"
-        ).mock(return_value=Response(201, json={"content": {}}))
+        ).mock(return_value=Response(201, json={"content": {"html_url": "https://github.com/test_owner/test_repo/blob/main/test.txt"}}))
 
         unicode_content = "中文测试 🎉 émojis".encode()
         client.upload_file(file_path="test.txt", content=unicode_content)
@@ -416,7 +417,7 @@ class TestGitHubClientEdgeCases:
 
         put_route = respx.put(
             "https://api.github.com/repos/test_owner/test_repo/contents/large.bin"
-        ).mock(return_value=Response(201, json={"content": {}}))
+        ).mock(return_value=Response(201, json={"content": {"html_url": "https://github.com/test_owner/test_repo/blob/main/large.bin"}}))
 
         # 10MB 文件
         large_content = b"x" * (10 * 1024 * 1024)

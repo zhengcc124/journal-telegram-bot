@@ -27,7 +27,7 @@ def setup_github_api():
 
     返回可以用于验证请求的路由对象。
     """
-    with respx.mock(assert_all_mocked=False) as mock:
+    with respx.mock(assert_all_called=False) as mock:
         routes = {}
 
         # 创建 Issue

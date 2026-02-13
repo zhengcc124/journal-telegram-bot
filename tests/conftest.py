@@ -50,7 +50,7 @@ def test_config() -> Config:
     """创建测试配置。"""
     return Config(
         telegram_token="test_telegram_token",
-        allowed_user_ids=[123456789, 987654321],
+        allowed_user_ids=(123456789, 987654321),
         github_token="test_github_token",
         github_owner="test_owner",
         github_repo="test_repo",
@@ -68,7 +68,7 @@ def test_config_no_whitelist() -> Config:
     """创建无白名单限制的测试配置。"""
     return Config(
         telegram_token="test_telegram_token",
-        allowed_user_ids=[],
+        allowed_user_ids=(),
         github_token="test_github_token",
         github_owner="test_owner",
         github_repo="test_repo",

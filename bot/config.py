@@ -31,7 +31,7 @@ class Config:
 
     # ── Telegram ─────────────────────────────────────────
     telegram_token: str
-    allowed_user_ids: list[int]  # 白名单，只允许这些用户发消息
+    allowed_user_ids: tuple[int, ...]  # 白名单，只允许这些用户发消息
 
     # ── GitHub ───────────────────────────────────────────
     github_token: str
@@ -50,12 +50,35 @@ class Config:
     show_entry_time: bool = True  # 是否显示条目时间
     entry_time_format: str = "%H:%M"  # 时间格式
 
+    def __hash__(self) -> int:
+        """自定义哈希函数，处理 ZoneInfo 不可哈希的问题。"""
+        return hash((
+            self.telegram_token,
+            self.allowed_user_ids,
+            self.github_token,
+            self.github_owner,
+            self.github_repo,
+            self.branch,
+            self.article_dir,
+            self.image_dir,
+            self.journal_label,
+            self.published_label,
+            str(self.timezone),  # ZoneInfo 转换为字符串
+            self.show_entry_time,
+            self.entry_time_format,
+        ))
+
     @classmethod
-    def from_env(cls, env_path: str | Path | None = None) -> Config:
-        """从 .env 文件 + 环境变量构建 Config 实例。"""
+    def from_env(cls, env_path: str | Path | None = None, load_dotenv_file: bool = True) -> Config:
+        """从 .env 文件 + 环境变量构建 Config 实例。
+
+        Args:
+            env_path: 可选的 .env 文件路径
+            load_dotenv_file: 是否从文件加载 .env（默认为 True，测试时可设为 False）
+        """
         if env_path:
             load_dotenv(env_path, override=True)
-        else:
+        elif load_dotenv_file:
             # 优先级:
             # 1. 当前目录 .munin/.env (仓库本地配置)
             # 2. 当前目录 .env (本地调试)
@@ -80,7 +103,12 @@ class Config:
 
         # 白名单：逗号分隔的数字
         raw_ids = os.getenv("ALLOWED_USER_IDS", "").strip()
-        allowed = [int(x.strip()) for x in raw_ids.split(",") if x.strip()] if raw_ids else []
+        allowed: tuple[int, ...] = ()
+        if raw_ids:
+            try:
+                allowed = tuple(int(x.strip()) for x in raw_ids.split(",") if x.strip())
+            except ValueError as e:
+                raise ValueError(f"ALLOWED_USER_IDS 格式无效，必须是逗号分隔的数字: {raw_ids}") from e
 
         # 时区
         tz_name = os.getenv("JOURNAL_TZ", "Asia/Shanghai").strip()

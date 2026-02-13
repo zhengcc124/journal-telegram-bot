@@ -29,11 +29,11 @@ class TestConfigLoading:
 
     def test_config_allowed_user_ids(self, test_config: Config) -> None:
         """测试白名单用户 ID 列表解析。"""
-        assert test_config.allowed_user_ids == [123456789, 987654321]
+        assert test_config.allowed_user_ids == (123456789, 987654321)
 
     def test_config_empty_whitelist(self, test_config_no_whitelist: Config) -> None:
         """测试空白名单（允许所有用户）。"""
-        assert test_config_no_whitelist.allowed_user_ids == []
+        assert test_config_no_whitelist.allowed_user_ids == ()
 
     def test_config_timezone(self, test_config: Config) -> None:
         """测试时区设置。"""
@@ -70,13 +70,13 @@ class TestConfigFromEnvVars:
     )
     def test_load_from_env_vars(self) -> None:
         """测试从环境变量加载所有配置。"""
-        config = Config.from_env()
+        config = Config.from_env(load_dotenv_file=False)
 
         assert config.telegram_token == "env_telegram_token"
         assert config.github_token == "env_github_token"
         assert config.github_owner == "env_owner"
         assert config.github_repo == "env_repo"
-        assert config.allowed_user_ids == [111, 222, 333]
+        assert config.allowed_user_ids == (111, 222, 333)
         assert config.branch == "develop"
         assert config.article_dir == "posts"
         assert config.image_dir == "images"
@@ -97,8 +97,8 @@ class TestConfigFromEnvVars:
     )
     def test_empty_user_ids(self) -> None:
         """测试空用户 ID 环境变量。"""
-        config = Config.from_env()
-        assert config.allowed_user_ids == []
+        config = Config.from_env(load_dotenv_file=False)
+        assert config.allowed_user_ids == ()
 
     @patch.dict(
         os.environ,
@@ -113,8 +113,8 @@ class TestConfigFromEnvVars:
     )
     def test_whitespace_in_user_ids(self) -> None:
         """测试用户 ID 中的空格处理。"""
-        config = Config.from_env()
-        assert config.allowed_user_ids == [111, 222]
+        config = Config.from_env(load_dotenv_file=False)
+        assert config.allowed_user_ids == (111, 222)
 
 
 @pytest.mark.unit
@@ -125,7 +125,7 @@ class TestConfigValidation:
     def test_missing_required_telegram_token(self, capsys) -> None:
         """测试缺少 TELEGRAM_BOT_TOKEN 时退出。"""
         with pytest.raises(SystemExit) as exc_info:
-            Config.from_env()
+            Config.from_env(load_dotenv_file=False)
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -141,7 +141,7 @@ class TestConfigValidation:
     def test_missing_required_github_token(self, capsys) -> None:
         """测试缺少 GITHUB_TOKEN 时退出。"""
         with pytest.raises(SystemExit) as exc_info:
-            Config.from_env()
+            Config.from_env(load_dotenv_file=False)
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -160,7 +160,7 @@ class TestConfigValidation:
     )
     def test_invalid_timezone_fallback(self, capsys) -> None:
         """测试无效时区回退到默认值。"""
-        config = Config.from_env()
+        config = Config.from_env(load_dotenv_file=False)
         assert config.timezone == ZoneInfo("Asia/Shanghai")
 
         captured = capsys.readouterr()
@@ -235,7 +235,7 @@ class TestConfigEdgeCases:
     def test_invalid_user_ids_format(self) -> None:
         """测试无效的用户 ID 格式应该报错。"""
         with pytest.raises(ValueError):
-            Config.from_env()
+            Config.from_env(load_dotenv_file=False)
 
     @patch.dict(
         os.environ,

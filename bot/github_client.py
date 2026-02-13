@@ -13,7 +13,7 @@ import base64
 import logging
 from typing import Any
 
-import requests
+import httpx
 
 from .config import Config
 
@@ -31,7 +31,7 @@ class GitHubClient:
 
     def __init__(self, config: Config):
         self.config = config
-        self.session = requests.Session()
+        self.session = httpx.Client()
         self.session.headers.update(
             {
                 "Authorization": f"token {config.github_token}",
@@ -41,11 +41,16 @@ class GitHubClient:
         self.base_url = "https://api.github.com"
         self.repo_url = f"{self.base_url}/repos/{config.github_owner}/{config.github_repo}"
 
-    def _handle_response(self, resp: requests.Response, action: str) -> None:
+    def __del__(self):
+        """清理 session"""
+        if hasattr(self, 'session'):
+            self.session.close()
+
+    def _handle_response(self, resp: httpx.Response, action: str) -> None:
         """处理 API 响应，记录错误并转换为自定义异常"""
         try:
             resp.raise_for_status()
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             logger.error(f"{action} 失败: {e}")
             try:
                 error_data = resp.json()
