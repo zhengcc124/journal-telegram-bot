@@ -151,10 +151,10 @@ my-journal/
 
 ```bash
 # 使用 pipx 安装（推荐，隔离环境）
-pipx install git+https://github.com/zhengcc124/journal-telegram-bot.git
+pipx install git+https://github.com/<your-username>/munin.git
 
 # 或使用 pip
-pip install git+https://github.com/zhengcc124/journal-telegram-bot.git
+pip install git+https://github.com/<your-username>/munin.git
 ```
 
 ### 创建并配置日志仓库
@@ -239,9 +239,9 @@ Commands:
 
 2. 部署完成后你会收到消息：
    ```
-   🎉 Raven 已更新！
+   🎉 你的日记已更新！
    
-   🔗 https://zhengcc124.github.io/Raven/
+   🔗 https://<your-username>.github.io/<your-repo>/
    
    ⏰ 更新时间: 2026-02-13 17:30:00
    ```
