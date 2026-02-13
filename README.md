@@ -227,6 +227,29 @@ Commands:
 | `/end` | 立即合并今天的日记并发布 |
 | `/config` | 查看/修改配置（时间显示、格式等） |
 
+## 部署通知（可选）
+
+博客部署完成后，可以收到 Telegram 消息提醒。
+
+**设置方法：**
+
+1. 在 GitHub 仓库设置中添加 Secrets：
+   - `TELEGRAM_BOT_TOKEN`: 你的 Bot Token
+   - `TELEGRAM_USER_ID`: 你的 Telegram 用户 ID
+
+2. 部署完成后你会收到消息：
+   ```
+   🎉 Raven 已更新！
+   
+   🔗 https://zhengcc124.github.io/Raven/
+   
+   ⏰ 更新时间: 2026-02-13 17:30:00
+   ```
+
+**注意**：
+- 不配置 Secrets 不会影响部署，只是没有通知
+-  Secrets 只需在日志仓库（如 Raven）配置，不需要在 Munin 代码仓库配置
+
 ## macOS 开机自启 (可选)
 
 ```bash
