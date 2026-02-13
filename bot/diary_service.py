@@ -199,10 +199,10 @@ class DiaryService:
             if entry.content:
                 entry_parts.append(entry.content)
 
-            # 添加图片引用
+            # 添加图片引用 (img_id 已经是完整的 Markdown 图片语法)
             if entry.images:
-                for img_id in entry.images:
-                    entry_parts.append(f"![]({img_id})")
+                for img_ref in entry.images:
+                    entry_parts.append(img_ref)
 
             if entry_parts:
                 body_parts.append("\n\n".join(entry_parts))
