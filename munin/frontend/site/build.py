@@ -420,42 +420,28 @@ class SiteBuilder:
         page_posts = self.posts[start_idx:end_idx]
 
         items = []
-        current_year = None
 
         for idx, post in enumerate(page_posts):
-            global_idx = start_idx + idx
-            year = post.date.year
+            # 生成标签 HTML
+            tags_html = ''
+            if post.tags:
+                tags_links = ' · '.join([
+                    f'<span class="tag">{tag}</span>'
+                    for tag in post.tags
+                ])
+                tags_html = f'<div class="post-item-tags">{tags_links}</div>'
 
-            # 年份分组
-            if year != current_year:
-                items.append(f'''
-                <div class="post-year">
-                    <span class="year-label">{year}</span>
+            # 生成文章条目 HTML
+            item_html = f'''
+            <article class="post-item" data-date="{post.date.isoformat()}">
+                <time class="post-item-date" datetime="{post.date.isoformat()}">{self.format_date(post.date)}</time>
+                <h2 class="post-item-title"><a href="posts/{post.slug}.html">{post.title}</a></h2>
+                <div class="post-item-content">
+                    {post.content}
                 </div>
-                ''')
-                current_year = year
-
-            if global_idx == 0:
-                # 第一篇（全局）：全文展示
-                item_html = f'''
-                <article class="post-item post-featured" data-date="{post.date.isoformat()}">
-                    <header class="post-item-header">
-                        <h2 class="post-item-title"><a href="posts/{post.slug}.html">{post.title}</a></h2>
-                    </header>
-                    <div class="post-content">
-                        {post.content}
-                    </div>
-                </article>
-                '''
-            else:
-                # 其他：只显示标题
-                item_html = f'''
-                <article class="post-item" data-date="{post.date.isoformat()}">
-                    <a href="posts/{post.slug}.html" class="post-link">
-                        <h2 class="post-item-title">{post.title}</h2>
-                    </a>
-                </article>
-                '''
+                {tags_html}
+            </article>
+            '''
             items.append(item_html)
 
         # 生成分页导航
