@@ -330,7 +330,9 @@ def _setup_remote_and_push(repo_dir: Path, repo_url: str, branch: str) -> tuple[
     return True, ""
 
 
-DEPLOY_WORKFLOW_SOURCE_URL = f"{MUNIN_SOURCE_REPO_RAW_BASE}/munin/frontend/.github/workflows/deploy.yml"
+DEPLOY_WORKFLOW_SOURCE_URL = (
+    f"{MUNIN_SOURCE_REPO_RAW_BASE}/munin/frontend/.github/workflows/deploy.yml"
+)
 
 
 def _bootstrap_repo_from_munin_source(repo_dir: Path) -> dict[str, str]:
@@ -342,9 +344,7 @@ def _bootstrap_repo_from_munin_source(repo_dir: Path) -> dict[str, str]:
     # 修改 deploy.yml 中的路径（前端模板在 frontend/ 目录下）
     deploy_workflow_content = deploy_workflow_content.replace(
         "cd site", "cd frontend/site"
-    ).replace(
-        "path: ./dist", "path: ./frontend/dist"
-    )
+    ).replace("path: ./dist", "path: ./frontend/dist")
 
     file_map = {
         ".github/workflows/publish.yml": workflow_content,
@@ -412,7 +412,7 @@ def _bootstrap_frontend(repo_dir: Path, force: bool = False) -> dict[str, str]:
 
         # 复制文件 (使用 str() 转换 Traversable 为路径字符串)
         # 忽略 .github 目录（deploy.yml 单独处理）
-        shutil.copytree(str(frontend_src), frontend_dst, ignore=shutil.ignore_patterns('.github'))
+        shutil.copytree(str(frontend_src), frontend_dst, ignore=shutil.ignore_patterns(".github"))
 
         # 统计复制的文件
         for item in frontend_dst.rglob("*"):

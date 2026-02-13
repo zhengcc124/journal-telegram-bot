@@ -67,7 +67,9 @@ class TestBootstrapFrontend:
             results = _bootstrap_frontend(target_repo)
 
             # Verify results - 4 files (excluding .github/ which is handled separately)
-            assert len(results) == 4  # build.py, config.yml, templates/index.html, assets/css/style.css
+            assert (
+                len(results) == 4
+            )  # build.py, config.yml, templates/index.html, assets/css/style.css
             assert (target_repo / "frontend" / "site" / "build.py").exists()
             assert (target_repo / "frontend" / "site" / "templates" / "index.html").exists()
 

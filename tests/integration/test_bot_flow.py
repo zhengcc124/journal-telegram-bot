@@ -695,6 +695,7 @@ class TestMediaGroupFlow:
             async def make_mock_download(idx):
                 async def mock_download(bio):
                     bio.write(f"fake_jpeg_data_{idx}".encode())
+
                 return mock_download
 
             mock_file = AsyncMock()
