@@ -17,11 +17,13 @@
 # 安装
 pipx install git+https://github.com/<your-username>/munin.git
 
-# 创建日志仓库
+# 1. 先在 GitHub 创建一个新仓库（如 my-journal）
+
+# 2. 创建本地日志仓库
 munin new my-journal
 # 按提示配置 Telegram Bot Token 和 GitHub 信息
 
-# 启动 Bot
+# 3. 启动 Bot
 cd my-journal
 munin start
 ```
