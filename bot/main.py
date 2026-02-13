@@ -48,17 +48,19 @@ def main(env_path: str | Path | None = None) -> None:
     # 构建 Telegram Bot Application
     app = ApplicationBuilder().token(config.telegram_token).build()
 
-    # 设置命令菜单
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(app.bot.set_my_commands(BOT_COMMANDS))
-        logger.info("✅ Bot 命令菜单已设置")
-    except Exception as e:
-        logger.warning(f"⚠️ 设置命令菜单失败: {e}")
-
     # 注册所有处理器
     for handler in bot_handlers.get_handlers():
         app.add_handler(handler)
+
+    # 启动后设置命令菜单（使用 post_init 回调）
+    async def setup_commands(app):
+        try:
+            await app.bot.set_my_commands(BOT_COMMANDS)
+            logger.info("✅ Bot 命令菜单已设置")
+        except Exception as e:
+            logger.warning(f"⚠️ 设置命令菜单失败: {e}")
+
+    app.post_init = setup_commands
 
     # 启动调度器（在异步上下文中）
     try:
