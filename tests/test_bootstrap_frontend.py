@@ -28,15 +28,14 @@ class TestBootstrapFrontend:
 
     @pytest.fixture
     def mock_frontend_files(self):
-        """Create mock frontend files structure"""
+        """Create mock frontend files structure (excluding .github which is handled separately)"""
 
         def _create(base_path: Path):
             # Create mock structure similar to munin/frontend/
-            (base_path / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+            # Note: .github/workflows/deploy.yml is now handled separately in _bootstrap_repo_from_munin_source
             (base_path / "site" / "templates").mkdir(parents=True, exist_ok=True)
             (base_path / "site" / "assets" / "css").mkdir(parents=True, exist_ok=True)
 
-            (base_path / ".github" / "workflows" / "deploy.yml").write_text("deploy workflow")
             (base_path / "site" / "build.py").write_text("build script")
             (base_path / "site" / "config.yml").write_text("config")
             (base_path / "site" / "templates" / "index.html").write_text("<html></html>")
@@ -67,8 +66,8 @@ class TestBootstrapFrontend:
 
             results = _bootstrap_frontend(target_repo)
 
-            # Verify results
-            assert len(results) == 5  # 5 files created
+            # Verify results - 4 files (excluding .github/ which is handled separately)
+            assert len(results) == 4  # build.py, config.yml, templates/index.html, assets/css/style.css
             assert (target_repo / "frontend" / "site" / "build.py").exists()
             assert (target_repo / "frontend" / "site" / "templates" / "index.html").exists()
 
