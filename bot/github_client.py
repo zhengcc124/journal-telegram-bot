@@ -43,7 +43,7 @@ class GitHubClient:
 
     def __del__(self):
         """清理 session"""
-        if hasattr(self, 'session'):
+        if hasattr(self, "session"):
             self.session.close()
 
     def _handle_response(self, resp: httpx.Response, action: str) -> None:

@@ -52,21 +52,23 @@ class Config:
 
     def __hash__(self) -> int:
         """自定义哈希函数，处理 ZoneInfo 不可哈希的问题。"""
-        return hash((
-            self.telegram_token,
-            self.allowed_user_ids,
-            self.github_token,
-            self.github_owner,
-            self.github_repo,
-            self.branch,
-            self.article_dir,
-            self.image_dir,
-            self.journal_label,
-            self.published_label,
-            str(self.timezone),  # ZoneInfo 转换为字符串
-            self.show_entry_time,
-            self.entry_time_format,
-        ))
+        return hash(
+            (
+                self.telegram_token,
+                self.allowed_user_ids,
+                self.github_token,
+                self.github_owner,
+                self.github_repo,
+                self.branch,
+                self.article_dir,
+                self.image_dir,
+                self.journal_label,
+                self.published_label,
+                str(self.timezone),  # ZoneInfo 转换为字符串
+                self.show_entry_time,
+                self.entry_time_format,
+            )
+        )
 
     @classmethod
     def from_env(cls, env_path: str | Path | None = None, load_dotenv_file: bool = True) -> Config:
@@ -108,7 +110,9 @@ class Config:
             try:
                 allowed = tuple(int(x.strip()) for x in raw_ids.split(",") if x.strip())
             except ValueError as e:
-                raise ValueError(f"ALLOWED_USER_IDS 格式无效，必须是逗号分隔的数字: {raw_ids}") from e
+                raise ValueError(
+                    f"ALLOWED_USER_IDS 格式无效，必须是逗号分隔的数字: {raw_ids}"
+                ) from e
 
         # 时区
         tz_name = os.getenv("JOURNAL_TZ", "Asia/Shanghai").strip()
