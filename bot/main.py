@@ -10,6 +10,7 @@ import asyncio
 import logging
 from pathlib import Path
 
+from telegram import BotCommand
 from telegram.ext import ApplicationBuilder
 
 from .config import Config
@@ -22,6 +23,14 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+# Bot 命令菜单
+BOT_COMMANDS = [
+    BotCommand("start", "开始使用日记机器人"),
+    BotCommand("help", "显示帮助文档"),
+    BotCommand("end", "立即合并今天的日记"),
+    BotCommand("config", "查看/修改配置"),
+]
 
 
 def main(env_path: str | Path | None = None) -> None:
@@ -38,6 +47,14 @@ def main(env_path: str | Path | None = None) -> None:
 
     # 构建 Telegram Bot Application
     app = ApplicationBuilder().token(config.telegram_token).build()
+
+    # 设置命令菜单
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(app.bot.set_my_commands(BOT_COMMANDS))
+        logger.info("✅ Bot 命令菜单已设置")
+    except Exception as e:
+        logger.warning(f"⚠️ 设置命令菜单失败: {e}")
 
     # 注册所有处理器
     for handler in bot_handlers.get_handlers():
@@ -58,7 +75,7 @@ def main(env_path: str | Path | None = None) -> None:
 
     # 启动 Bot（Long Polling）
     logger.info("🚀 Bot 启动中...")
-    logger.info("命令: /start, /help, /end")
+    logger.info("命令: /start, /help, /end, /config")
     app.run_polling(allowed_updates=["message"])
 
 
