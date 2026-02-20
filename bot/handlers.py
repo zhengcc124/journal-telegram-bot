@@ -16,7 +16,7 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from telegram import Update
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     CommandHandler,
     ContextTypes,
@@ -84,6 +84,7 @@ class BotHandlers:
             CommandHandler("end", self.handle_end),
             CommandHandler("start", self.handle_start),
             CommandHandler("help", self.handle_help),
+            TelegramMessageHandler(filters.LOCATION, self.handle_location),
             TelegramMessageHandler(filters.TEXT | filters.PHOTO, self.handle_message),
         ]
 
@@ -179,12 +180,85 @@ class BotHandlers:
             else:
                 await update.message.reply_text("❌ 用法: /config format 24h|12h")
 
-        else:
+        elif key == "location":
+            # 请求用户分享位置
+            location_button = KeyboardButton(
+                text="📍 分享当前位置",
+                request_location=True
+            )
+            default_button = KeyboardButton("🏠 使用默认城市")
+            
+            reply_markup = ReplyKeyboardMarkup(
+                keyboard=[[location_button], [default_button]],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+            
             await update.message.reply_text(
-                "❌ 未知配置命令\n\n" "用法:\n" "/config time on|off\n" "/config format 24h|12h"
+                "请分享您的位置，以便获取当地天气信息：",
+                reply_markup=reply_markup
             )
 
-    async def handle_end(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        else:
+            await update.message.reply_text(
+                "❌ 未知配置命令\n\n"
+                "用法:\n"
+                "/config time on|off\n"
+                "/config format 24h|12h\n"
+                "/config location - 设置天气位置"
+            )
+
+    async def handle_location(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """处理用户发送的位置消息"""
+        user_id = update.effective_user.id
+        
+        if not self._check_permission(user_id):
+            return
+        
+        location = update.message.location
+        if not location:
+            return
+        
+        lat = location.latitude
+        lng = location.longitude
+        
+        # 导入位置服务
+        try:
+            from sync.location_service import get_nearest_city
+            city = get_nearest_city(lat, lng)
+            
+            if city:
+                # 保存到用户配置
+                self.storage.set_user_config(user_id, "weather_location", city)
+                
+                # 城市中文名映射
+                city_names = {
+                    'Shanghai': '上海', 'Beijing': '北京', 'Hangzhou': '杭州',
+                    'Shenzhen': '深圳', 'Chengdu': '成都', 'Guangzhou': '广州',
+                    'Puer': '普洱', 'Hong Kong': '香港',
+                }
+                city_cn = city_names.get(city, city)
+                
+                await update.message.reply_text(
+                    f"✅ 已保存位置：{city_cn}\n"
+                    f"📍 坐标：{lat:.4f}, {lng:.4f}\n\n"
+                    f"后续日记将使用{city_cn}的天气数据。",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+            else:
+                await update.message.reply_text(
+                    "⚠️ 未能识别该位置对应的城市。\n"
+                    "已保存坐标，将使用默认天气。",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                self.storage.set_user_config(user_id, "weather_location", f"{lat},{lng}")
+                
+        except Exception as e:
+            logger.exception("处理位置消息失败")
+            await update.message.reply_text(
+                "⚠️ 位置处理失败，请重试。",
+                reply_markup=ReplyKeyboardRemove()
+            )
         """处理 /end 命令 - 立即合并今天的日记"""
         user_id = update.effective_user.id
 
